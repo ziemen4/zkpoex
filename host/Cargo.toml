@@ -1,0 +1,16 @@
+[package]
+name = "host"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+methods = { path = "../methods" }
+risc0-zkvm = { version = "1.2.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = "1.0"
+primitive-types =  { version = "0.12.0", default-features = false }
+evm = { version = "0.42.0", default-features = false }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+hex-literal = { version = "0.3.4", default-features = false  }
+hex = { version = "0.4", default-features = false, features = [ "alloc" ]  }
+evm-runner = { path = "../evm-runner" }
