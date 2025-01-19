@@ -9,14 +9,15 @@ use primitive_types::U256;
 use risc0_zkvm::{default_prover, ExecutorEnv};
 use serde::Serialize;
 use evm_runner::conditions::{Condition, FixedCondition, Operator};
-use evm_runner::input::{CallerData, TargetData};
+use evm_runner::input::AccountData;
 
 // TODO: Add custom serializer.
 #[derive(Serialize, Debug)]
 struct InputData<'a> {
     calldata: &'a str,
-    caller_data: CallerData,
-    target_data: TargetData,
+    caller_data: AccountData,
+    target_data: AccountData,
+    context_data: Vec<AccountData>,
     program_spec: String,
     blockchain_settings: String,
 }
@@ -66,15 +67,14 @@ fn main() {
     //    H256::from_str("9dacead86f17b925da5cddb505562dc97c4ff6cad92157aa7ff2f2f7bd76e2b8").unwrap(),
     //);
 
-    let target_data = TargetData {
-        bytecode: TARGET_CONTRACT_EVM_PROGRAM.to_string(),
+    let target_data = AccountData {
         address: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97".to_string(),
         nonce: U256::one(),
         balance: U256::from_dec_str("1000000000000000000").unwrap(),
         storage: target_storage,
-        code: vec![],
+        code: hex::decode(TARGET_CONTRACT_EVM_PROGRAM).unwrap(),
     };
-    let caller_data = CallerData {
+    let caller_data = AccountData {
         address: "E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c".to_string(),
         nonce: U256::one(),
         balance: U256::from_dec_str("10000000000000000000").unwrap(),
@@ -102,6 +102,7 @@ fn main() {
         calldata,
         caller_data,
         target_data,
+        context_data: vec![],
         program_spec: serde_json::to_string(&program_spec).unwrap(),
         blockchain_settings,
     };

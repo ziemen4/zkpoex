@@ -35,13 +35,15 @@ pub enum Condition {
     Relative(RelativeCondition),
 }
 
-pub fn hash_conditions(conditions: &[Condition]) -> [u8; 32] {
-	// TODO: use SHA3? Or see what is the best hash function for this
+pub fn hash_program_spec(program_spec: &[(Condition, String)]) -> [u8; 32] {
     let mut hasher = Sha256::new();
 
-    for cond in conditions {
-        let serialized = serialize_condition(cond);
-        hasher.update(serialized);
+    for (cond, method) in program_spec {
+        let serialized_condition = serialize_condition(cond);
+        let serialized_method = method.as_bytes();
+        // Concat the serialized condition and method
+        let concat_condition_method = [serialized_condition, serialized_method.to_vec()].concat();
+        hasher.update(concat_condition_method);
     }
 
     hasher.finalize().into()

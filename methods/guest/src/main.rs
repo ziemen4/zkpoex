@@ -3,7 +3,7 @@ extern crate alloc;
 use risc0_zkvm::guest::env;
 use evm_runner::run_evm;
 use evm_runner::conditions::Condition;
-use evm_runner::input::{CallerData, TargetData};
+use evm_runner::input::AccountData;
 use primitive_types::{U256, H160, H256};
 use alloc::{vec::Vec, collections::BTreeMap, string::String, format};
 use evm::{
@@ -26,13 +26,18 @@ fn main() {
     println!("Read calldata successfully");
     println!("{:?}", calldata);
     
-    let caller_data: CallerData = env::read();
+    let caller_data: AccountData = env::read();
     println!("Read caller_data successfully");
     println!("{:?}", caller_data);
 
-    let target_data: TargetData = env::read();
+    let target_data: AccountData = env::read();
     println!("Read target_data successfully");
     println!("{:?}", target_data);
+
+    // TODO: See if we can deserialize directly into Vec<AccountData>, instead of String
+    let _context_data: String = env::read();
+    println!("Read context_data successfully");
+    println!("{:?}", _context_data);
 
     // TODO: See if we can deserialize directly into Vec<Condition>, instead of String
     let _program_spec: String = env::read();
@@ -47,8 +52,12 @@ fn main() {
     println!("Converted program_spec successfully");
     println!("{:?}", program_spec);
 
+    let context_data: Vec<AccountData> = serde_json::from_str(&_context_data).unwrap();
+    println!("Converted context_data successfully");
+    println!("{:?}", context_data);
+
     // Log input_json
-    let result = run_evm(&calldata, caller_data, target_data, program_spec, &blockchain_settings);
+    let result = run_evm(&calldata, caller_data, target_data, context_data, program_spec, &blockchain_settings);
     env::commit(&result);
 
     let end = env::cycle_count();
