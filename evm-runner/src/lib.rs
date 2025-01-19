@@ -377,7 +377,6 @@ pub fn run_evm(
 		u64::MAX,
 		Vec::new(),
 	);
-	let after = executor.balance(H160::from_str(&target_data.address).unwrap());
 
 	assert!(exit_reason == ExitReason::Succeed(ExitSucceed::Stopped));
 	// Check balance
