@@ -17,9 +17,11 @@ struct InputData<'a> {
     calldata: &'a str,
     caller_data: AccountData,
     target_data: AccountData,
-    context_data: Vec<AccountData>,
+    context_data: String,
     program_spec: String,
     blockchain_settings: String,
+    public_key: Option<String>,
+    missing_spec: Option<String>,
 }
 
 pub const TARGET_CONTRACT_EVM_PROGRAM: &str = include_str!("../../bytecode/TargetContract.bin-runtime");
@@ -97,14 +99,16 @@ fn main() {
             "16112c6c".to_string()
         )
     ];
-
+    let context_data: Vec<AccountData> = vec![];
     let input = InputData {
         calldata,
         caller_data,
         target_data,
-        context_data: vec![],
+        context_data: serde_json::to_string(&context_data).unwrap(),
         program_spec: serde_json::to_string(&program_spec).unwrap(),
         blockchain_settings,
+        public_key: None,
+        missing_spec: None,
     };
 
     println!("Sending input to guest: {:?}", input);

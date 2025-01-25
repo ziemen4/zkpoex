@@ -52,12 +52,21 @@ fn main() {
     println!("Converted program_spec successfully");
     println!("{:?}", program_spec);
 
-    let context_data: Vec<AccountData> = serde_json::from_str(&_context_data).unwrap();
     println!("Converted context_data successfully");
     println!("{:?}", context_data);
 
+
     // Log input_json
-    let result = run_evm(&calldata, caller_data, target_data, context_data, program_spec, &blockchain_settings);
+    let result = run_evm(
+        &calldata, 
+        caller_data, 
+        target_data, 
+        context_data, 
+        program_spec, 
+        &blockchain_settings,
+        None,
+        None,
+    );
     env::commit(&result);
 
     let end = env::cycle_count();

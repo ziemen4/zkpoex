@@ -15,13 +15,20 @@ use evm::{
 		Backend, MemoryAccount, MemoryBackend, MemoryVicinity
 	}, executor::stack::{
 		MemoryStackState, StackExecutor, StackSubstateMetadata
-	}, Config, ExitReason, ExitSucceed, Handler
+	}, Config, ExitReason, ExitSucceed
 };
 use input::AccountData;
 use primitive_types::{U256, H160, H256};
 use serde_json::from_str;
 use serde::Deserialize;
 use sha2::{Sha256, Digest};
+use hpke::{OpModeS, setup_sender, Deserializable, Serializable};
+use hpke::aead::ChaCha20Poly1305;
+use hpke::kem::X25519HkdfSha256;
+use hpke::kdf::HkdfSha256;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+use hex::decode;
 
 pub const TARGET_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/TargetContract.bin-runtime");
 
@@ -306,11 +313,62 @@ fn prove_final_state(
 }
 
 fn encrypt_secure(calldata: &str, public_key: &str) -> String {
-	// Here we need to do some asymmetric encryption so that we encrypt
-	// the calldata with the public key and then return the encrypted calldata
-	
-	// For now, we just return the calldata as is
-	calldata.to_string()	
+	// Define the ciphersuite
+	type Kem = X25519HkdfSha256;
+	type Aead = ChaCha20Poly1305;
+	type Kdf = HkdfSha256;
+
+	// Initialize CSPRNG
+	let mut csprng = StdRng::from_entropy();
+
+	// Define a public session description string (info string)
+	let info_str = b"zkVM encryption session";
+
+	// Decode the provided public key
+	let bob_pk_bytes = decode(public_key).expect("Invalid public key format!");
+
+    // Convert the byte vector to a PublicKey
+    let bob_pk = <<X25519HkdfSha256 as hpke::Kem>::PublicKey>::from_bytes(&bob_pk_bytes)
+        .expect("Invalid public key bytes!");
+
+	// Convert calldata (hex string) into bytes
+	let message_bytes = decode(calldata).expect("Invalid calldata format!");
+
+	// Use the public key as part of the authenticated associated data (AAD)
+	let aad = public_key.as_bytes();
+
+	// Create encryption session
+	let (encapsulated_key, mut encryption_context) =
+		setup_sender::<Aead, Kdf, Kem, _>(&OpModeS::Base, &bob_pk, info_str, &mut csprng)
+			.expect("Failed to set up sender!");
+
+	// Encrypt the calldata
+	let ciphertext = encryption_context
+		.seal(&message_bytes, aad)
+		.expect("Encryption failed!");
+
+	// Combine encapsulated key and ciphertext into a single output
+	// Encapsulated key ensures the receiver can derive the decryption key
+	let mut result = encapsulated_key.to_bytes().to_vec();
+	result.extend_from_slice(&ciphertext);
+
+	println!("Encrypted calldata: {:?}", hex::encode(&result));
+	// Verify if its correct
+	// Somewhere far away, Bob receives the data and makes a decryption session
+	/*let mut decryption_context =
+	hpke::setup_receiver::<Aead, Kdf, Kem>(
+		&OpModeR::Base,
+		&bob_sk,
+		&encapsulated_key,
+		info_str,
+	).expect("failed to set up receiver!");
+	// To open without allocating:
+	//     decryption_context.open_in_place_detached(&mut ciphertext, aad, &auth_tag)
+	// To open with allocating:
+	let plaintext = decryption_context.open(&ciphertext, aad).expect("invalid ciphertext!");
+	*/
+	// Encode the result as a hex string
+	hex::encode(result)
 }
 
 fn encrypt_non_secure(calldata: &str) -> String {
