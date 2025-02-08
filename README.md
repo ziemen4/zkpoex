@@ -52,10 +52,10 @@ We state that conditions are related to methods with a $1$ to $N$ cardinality, t
 
 **Specification**
 A **valid specification** $S$ is the set of tuples $(m, c_m)$ (methods and conditions over said method) where we expect that after applying $m$ the condition $c_m$ is always true, that is:
-- $S: \{(m, c_m)$ $|$ $s' = m(i, s) \land c_m(s, s') = 1\}$
+- $S: \{(m, c_m) \mid s' = m(i, s) \land c_m(s, s') = 1\}$
 
 An **invalid specification** $S$ is the set of tuples $(m, c_m)$ where we expect that after applying any $m$ at least one condition $c_m$ is false, that is:
-- $S: \{(m, c_m)$ $|$ $s' = m(i, s) \land \exists$  $c_m(s, s') = 0\}$
+- $S: \{(m, c_m) \mid s' = m(i, s) \land \exists c_m(s, s') = 0\}$
 
 We use the shorthand $(*, c)$ to define a condition applied to all methods (such conditions are called **universal**).
 ##### Protocol
