@@ -22,13 +22,13 @@ use primitive_types::{U256, H160, H256};
 use serde_json::from_str;
 use serde::Deserialize;
 use sha2::{Sha256, Digest};
-use hpke::{OpModeS, setup_sender, Deserializable, Serializable};
+use hpke::{setup_sender, Deserializable, OpModeR, OpModeS, Serializable,Kem};
 use hpke::aead::ChaCha20Poly1305;
 use hpke::kem::X25519HkdfSha256;
 use hpke::kdf::HkdfSha256;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use hex::decode;
+use hex::{encode,decode};
 
 pub const TARGET_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/TargetContract.bin-runtime");
 
@@ -45,6 +45,22 @@ pub struct DeserializeMemoryVicinity {
     pub block_gas_limit: String,
     pub block_base_fee_per_gas: String,
 }
+
+// This function generates a new keypair (private key and public key) for the chosen KEM.
+pub fn generate_keypair(seed: &[u8; 32]) -> (String, String) {
+	// Create a deterministic RNG from the seed
+	let mut rng = StdRng::from_seed(*seed);
+
+	// Generate a key pair
+	let (sk, pk) = X25519HkdfSha256::gen_keypair(&mut rng);
+
+	// Convert to base64 for easy encoding
+	let sk_b64 = encode(sk.to_bytes());
+	let pk_b64 = encode(pk.to_bytes());
+
+	(sk_b64, pk_b64)
+}
+
 
 fn check_condition_op<T: PartialOrd>(operator: &Operator, first_val: T, second_val: T) -> bool {
 	match operator {
@@ -312,7 +328,7 @@ fn prove_final_state(
 	(false, false)
 }
 
-fn encrypt_secure(calldata: &str, public_key: &str) -> String {
+fn secure_encrypt(calldata: &str, public_key: &str) -> String {
 	// Define the ciphersuite
 	type Kem = X25519HkdfSha256;
 	type Aead = ChaCha20Poly1305;
@@ -353,12 +369,19 @@ fn encrypt_secure(calldata: &str, public_key: &str) -> String {
 	result.extend_from_slice(&ciphertext);
 
 	println!("Encrypted calldata: {:?}", hex::encode(&result));
+	
+	/* 
 	// Verify if its correct
 	// Somewhere far away, Bob receives the data and makes a decryption session
-	/*let mut decryption_context =
+	let seed: [u8; 32] = [42; 32]; // Example deterministic seed
+	let (private_key, _) = generate_keypair(&seed);
+	let private_key_bytes = hex::decode(&private_key).expect("Failed to decode private key from hex");
+	let sk_recip = <X25519HkdfSha256 as hpke::Kem>::PrivateKey::from_bytes(&private_key_bytes).expect("Invalid private key bytes!");
+	
+	let mut decryption_context =
 	hpke::setup_receiver::<Aead, Kdf, Kem>(
 		&OpModeR::Base,
-		&bob_sk,
+		&sk_recip,
 		&encapsulated_key,
 		info_str,
 	).expect("failed to set up receiver!");
@@ -366,12 +389,14 @@ fn encrypt_secure(calldata: &str, public_key: &str) -> String {
 	//     decryption_context.open_in_place_detached(&mut ciphertext, aad, &auth_tag)
 	// To open with allocating:
 	let plaintext = decryption_context.open(&ciphertext, aad).expect("invalid ciphertext!");
+	println!("Decrypted calldata: {:?}", hex::encode(&plaintext));
 	*/
+
 	// Encode the result as a hex string
 	hex::encode(result)
 }
 
-fn encrypt_non_secure(calldata: &str) -> String {
+fn timelock_encrypt(calldata: &str) -> String {
 	// Here we would need to something so that the encryption can be broken
 
 	// For now, we just return the calldata as is
@@ -384,7 +409,6 @@ fn hash(data: &Vec<u8>) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-
 pub fn run_evm(
 	calldata: &str,
 	caller_data: AccountData,
@@ -392,13 +416,13 @@ pub fn run_evm(
 	context_data: Vec<AccountData>,
 	program_spec: Vec<(Condition, String)>,
 	blockchain_settings: &str,
-	public_key: Option<&str>,
+	public_key: &str,
 	missing_spec: Option<(Condition, String)>,
 ) -> Vec<String> {
 	// 0. Preliminaries
 	// 0.1 Initialize the EVM config
 	let config = Config::cancun();
-	// deserialize vicinity
+	// Deserialize vicinity
 	let deserialize_vicinity: DeserializeMemoryVicinity = from_str(blockchain_settings).unwrap();
 	let vicinity: MemoryVicinity = from_deserialized_vicinity(deserialize_vicinity);
 
@@ -437,7 +461,6 @@ pub fn run_evm(
 	);
 
 	assert!(exit_reason == ExitReason::Succeed(ExitSucceed::Stopped));
-	// Check balance
 
 	// 4. Prove that the final state is invalid wrt the program specification
 	let post_state = executor.state();
@@ -455,7 +478,7 @@ pub fn run_evm(
 			None => None,
 		};
 
-	// 4.1 If exit_succeed is true, then we have found an exploit
+	// 4.1 Depending on the returning boolean values, we can determine if an exploit or new condition was found
 	let (
 		exploit_found, 
 		new_condition_found
@@ -470,22 +493,13 @@ pub fn run_evm(
 	println!("New condition found: {:?}", new_condition_found);
 
 	if !exploit_found && !new_condition_found {
-		// TODO: Support "Finding a new condition" use case
 		panic!("No exploit or new condition found");
 	}
 
-	// 5. Encrypt the calldata with the public key (if provided)
-	let encrypted_calldata = if let Some(public_key) = public_key {
-		Some(
-			if exploit_found {
-				encrypt_secure(calldata, public_key)
-			} else {
-				encrypt_non_secure(calldata)
-			}
-		)
-	} else {
-		None
-	};
+	// 5. Encrypt the calldata with the public key
+	let securely_encrypted_calldata = secure_encrypt(calldata, public_key);
+	
+	let timelock_encrypted_calldata = (!exploit_found).then(|| timelock_encrypt(calldata));
 
 	// 6. Prepare outputs
 	let mut outputs = Vec::new();
@@ -494,25 +508,31 @@ pub fn run_evm(
 	outputs.push(exploit_found.to_string());
 	outputs.push(new_condition_found.to_string());
 
-	// 6.1 The public key of the protocol: $pk$
-	if let Some(public_key) = public_key {
-		outputs.push(public_key.to_string());
-	}
-
-	// 6.2 The encrypted calldata $Enc(c)$
-	if let Some(encrypted) = encrypted_calldata {
-		outputs.push(encrypted);
-	}
-	
-	// 6.3 The hash of the program's specification used $SHA3(S)$
+	// 6.1 The hash of the program's specification used $SHA3(S)$
 	let hashed_program_spec = conditions::hash_program_spec(&program_spec);
 	outputs.push(hex::encode(hashed_program_spec));
 
-	// 6.4 The hash of the bytecode used $SHA3(b)$
+	// 6.2 The hash of the bytecode used $SHA3(b)$
 	let hashed_bytecode = hash(&target_data.code);
 	outputs.push(hex::encode(hashed_bytecode));
 
-	// 6.5 The hash of other used bytecodes $SHA3((b_1) || ... || (a_m, b_m))$
+	// 6.3 The public key of the protocol: $pk$
+	outputs.push(public_key.to_string());
+
+	// 6.4 The encrypted calldata $Enc(c)$
+	outputs.push(securely_encrypted_calldata);
+
+	// 6.5 If no exploit found, the timelock encrypted calldata
+	if let Some(timelock_encrypted_calldata) = timelock_encrypted_calldata {
+		outputs.push(timelock_encrypted_calldata);
+	}
+	
+
+	// 6.5 TODO: program_spec_exploit_category_mapping_hash
+	// This is when we add this mapping here and prove that the
+	// found exploit is in the mapping and belongs to a category
+	
+	// 6.6 The hash of other used bytecodes $SHA3((b_1) || ... || (a_m, b_m))$
 	let mut bytecode_list: Vec<String> = Vec::new();
 	for cdata in context_data {
 		bytecode_list.push(hex::encode(cdata.code));
@@ -527,9 +547,12 @@ pub fn run_evm(
 #[cfg(test)]
 mod tests {
     use super::*;
-	
+
 	#[test]
 	fn evm_find_new_exploit_works() {
+		/*
+		(**Finding a new exploit**) Calling the method ```exploit``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
+		 */
 		let calldata = "16112c6c0000000000000000000000000000000000000000000000000000000000000001"; // exploit(true)
 		let blockchain_settings = r#"
         {
@@ -545,6 +568,11 @@ mod tests {
 			"block_base_fee_per_gas": "0"
 		}
     	"#;
+		// Generate a new key pair.
+		let seed: [u8; 32] = [42; 32]; // Example deterministic seed
+		let (private_key, public_key) = generate_keypair(&seed);
+		println!("Generated Private Key: {}", private_key);
+		println!("Generated Public Key:  {}", public_key);
 
 		let result = run_evm(
 			calldata,
@@ -579,7 +607,7 @@ mod tests {
 				)
 			],
 			blockchain_settings,
-			None,
+			&public_key,
 			None,
 		);
 		println!("Result [Balance before tx, Balance after tx]: {:?}", result);
@@ -607,6 +635,11 @@ mod tests {
 			"block_base_fee_per_gas": "0"
 		}
     	"#;
+		// Generate a new key pair.
+		let seed: [u8; 32] = [42; 32]; // Deterministic seed
+		let (private_key, public_key) = generate_keypair(&seed);
+		println!("Generated Private Key: {}", private_key);
+		println!("Generated Public Key:  {}", public_key);
 
 		let result = run_evm(
 			calldata,
@@ -641,7 +674,7 @@ mod tests {
 				)
 			],
 			blockchain_settings,
-			None,
+			&public_key,
 			Some((
 				Condition::Fixed(
 					FixedCondition {

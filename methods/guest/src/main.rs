@@ -48,13 +48,17 @@ fn main() {
     println!("Read blockchain_settings successfully");
     println!("{:?}", blockchain_settings);
 
+    let public_key: String = env::read();
+    println!("Read public_key successfully");
+    println!("{:?}", public_key);
+
     let program_spec: Vec<(Condition, String)> = serde_json::from_str(&_program_spec).unwrap();
     println!("Converted program_spec successfully");
     println!("{:?}", program_spec);
 
+    let context_data: Vec<AccountData> = serde_json::from_str(&_context_data).unwrap();
     println!("Converted context_data successfully");
     println!("{:?}", context_data);
-
 
     // Log input_json
     let result = run_evm(
@@ -64,7 +68,7 @@ fn main() {
         context_data, 
         program_spec, 
         &blockchain_settings,
-        None,
+        &public_key,
         None,
     );
     env::commit(&result);

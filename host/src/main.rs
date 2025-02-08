@@ -20,7 +20,7 @@ struct InputData<'a> {
     context_data: String,
     program_spec: String,
     blockchain_settings: String,
-    public_key: Option<String>,
+    public_key: String,
     missing_spec: Option<String>,
 }
 
@@ -99,6 +99,8 @@ fn main() {
             "16112c6c".to_string()
         )
     ];
+    let seed: [u8; 32] = [42; 32]; // Deterministic seed
+    let (_, public_key) = evm_runner::generate_keypair(&seed);
     let context_data: Vec<AccountData> = vec![];
     let input = InputData {
         calldata,
@@ -107,7 +109,7 @@ fn main() {
         context_data: serde_json::to_string(&context_data).unwrap(),
         program_spec: serde_json::to_string(&program_spec).unwrap(),
         blockchain_settings,
-        public_key: None,
+        public_key,
         missing_spec: None,
     };
 
