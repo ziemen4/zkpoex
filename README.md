@@ -5,8 +5,11 @@ One of the biggest issues with crypto nowadays is that exploits happen very ofte
 
 ==Software is not exempt of *bugs* and since it is development in the crypto industry tends to be fast paced with huge risks==, ==it usually means that there are interested agents looking for *bugs* and exploits to obtain profit. Hence, there is a big demand for novel use cases that can somehow mitigate this issues.==
 
-==Typically, *bounties* and *audits* are done, but many times this is not enough.== 
-*Bounties* typically carry some friction, since sometimes there is some ambiguity over found exploits, sometimes *bounty hunters* are not paid at all. [Find sources] 
+Typically, *bounties* and *audits* are done, but many times this is not enough. *Bounties* typically carry some friction, since sometimes there is some ambiguity over found exploits, sometimes *bounty hunters* are not paid at all. 
+
+> "[...] it’s important that hunters receive their rewards promptly and reliably. Delays in payments or a lack of trust in the reward process can be problematic. Additionally, issues related to financial privacy, such as sharing bank card details, need to be addressed."  
+> _[Source: "A Comprehensive Survey of Bug Bounties and Vulnerability Reward Programs"](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=10409942)_
+
 *Audits* in the other hand can find potential bugs but may miss some relevant issue. They are also done periodically and are quite expensive.
 
 Ideally, we would like to have some sort of protocol that levels the playing ground both for exploiters and *whitehats*. When en exploiter finds a bug, it only requires the creation of a transaction in some novel way such that after the transaction is executed, the funds are effectively stolen, the exploiters are sophisticated actors which are continually monitoring new projects and smart contracts. 
@@ -52,10 +55,10 @@ We state that conditions are related to methods with a $1$ to $N$ cardinality, t
 
 **Specification**
 A **valid specification** $S$ is the set of tuples $(m, c_m)$ (methods and conditions over said method) where we expect that after applying $m$ the condition $c_m$ is always true, that is:
-- $S: \{(m, c_m)$ $|$ $s' = m(i, s) \land c_m(s, s') = 1\}$
+- $S: \{(m, c_m) \mid s' = m(i, s) \land c_m(s, s') = 1\}$
 
 An **invalid specification** $S$ is the set of tuples $(m, c_m)$ where we expect that after applying any $m$ at least one condition $c_m$ is false, that is:
-- $S: \{(m, c_m)$ $|$ $s' = m(i, s) \land \exists$  $c_m(s, s') = 0\}$
+- $S: \{(m, c_m) \mid s' = m(i, s) \land \exists c_m(s, s') = 0\}$
 
 We use the shorthand $(*, c)$ to define a condition applied to all methods (such conditions are called **universal**).
 ##### Protocol
