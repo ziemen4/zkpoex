@@ -11,7 +11,6 @@ use serde::Serialize;
 use evm_runner::conditions::{Condition, FixedCondition, Operator};
 use evm_runner::input::AccountData;
 
-// TODO: Add custom serializer.
 #[derive(Serialize, Debug)]
 struct InputData<'a> {
     calldata: &'a str,
@@ -19,9 +18,7 @@ struct InputData<'a> {
     target_data: AccountData,
     context_data: String,
     program_spec: String,
-    blockchain_settings: String,
-    public_key: String,
-    missing_spec: Option<String>,
+    blockchain_settings: String
 }
 
 pub const TARGET_CONTRACT_EVM_PROGRAM: &str = include_str!("../../bytecode/TargetContract.bin-runtime");
@@ -63,12 +60,6 @@ fn main() {
     "#, chain_id);
 
     let target_storage = BTreeMap::new();
-    // Insert random storage values for the target contract.
-    //target_storage.insert(
-    //    H256::from_str("59f33fb19503abee8dd9fbdecc425b879c685af6fb88b6d51e5f57aaa9e8a607").unwrap(),
-    //    H256::from_str("9dacead86f17b925da5cddb505562dc97c4ff6cad92157aa7ff2f2f7bd76e2b8").unwrap(),
-    //);
-
     let target_data = AccountData {
         address: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97".to_string(),
         nonce: U256::one(),
@@ -99,8 +90,7 @@ fn main() {
             "16112c6c".to_string()
         )
     ];
-    let seed: [u8; 32] = [42; 32]; // Deterministic seed
-    let (_, public_key) = evm_runner::generate_keypair(&seed);
+
     let context_data: Vec<AccountData> = vec![];
     let input = InputData {
         calldata,
@@ -108,9 +98,7 @@ fn main() {
         target_data,
         context_data: serde_json::to_string(&context_data).unwrap(),
         program_spec: serde_json::to_string(&program_spec).unwrap(),
-        blockchain_settings,
-        public_key,
-        missing_spec: None,
+        blockchain_settings
     };
 
     println!("Sending input to guest: {:?}", input);

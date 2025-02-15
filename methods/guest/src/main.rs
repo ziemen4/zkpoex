@@ -48,10 +48,6 @@ fn main() {
     println!("Read blockchain_settings successfully");
     println!("{:?}", blockchain_settings);
 
-    let public_key: String = env::read();
-    println!("Read public_key successfully");
-    println!("{:?}", public_key);
-
     let program_spec: Vec<(Condition, String)> = serde_json::from_str(&_program_spec).unwrap();
     println!("Converted program_spec successfully");
     println!("{:?}", program_spec);
@@ -67,9 +63,7 @@ fn main() {
         target_data, 
         context_data, 
         program_spec, 
-        &blockchain_settings,
-        &public_key,
-        None,
+        &blockchain_settings
     );
     env::commit(&result);
 

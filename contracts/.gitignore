@@ -1,1 +1,4 @@
 lib/
+cache/
+out/*
+test/Elf.sol
