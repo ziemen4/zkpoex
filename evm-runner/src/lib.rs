@@ -1,6 +1,7 @@
 #![cfg_attr(not(test),)]
 pub mod conditions;
 pub mod input;
+pub mod context;
 
 extern crate alloc;
 extern crate core;
@@ -22,13 +23,11 @@ use primitive_types::{U256, H160, H256};
 use serde_json::from_str;
 use serde::Deserialize;
 use sha2::{Sha256, Digest};
-use hpke::{setup_sender, Deserializable, OpModeS, Serializable,Kem};
-use hpke::aead::ChaCha20Poly1305;
+use hpke::{Serializable,Kem};
 use hpke::kem::X25519HkdfSha256;
-use hpke::kdf::HkdfSha256;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use hex::{encode,decode};
+use hex::encode;
 
 pub const TARGET_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/TargetContract.bin-runtime");
 
@@ -142,8 +141,6 @@ fn check_fixed_condition(
 	// Get the account from the state
     let account_basic = state.basic(account_address);
 
-	println!("Account basic: {:?}", account_basic);
-	println!("Fixed condition: {:?}", fixed_condition);
 	// If the state key vector has length 2, then we are accessing the account fields directly
 	if state_key.len() == 2 {
 		match state_key[1] {
@@ -157,13 +154,27 @@ fn check_fixed_condition(
 				panic!("Invalid state key: {}", state_key[1]);
 			}
 		}
-	} else {
-		// TODO: Figure out how to compare storage values correctly (type stuff)
-		// If the state key vector has length 3, then we are accessing the storage fields
-		//let storage_key = H256::from_str(state_key[1]).unwrap();
-		//let storage_value = state.storage.(account_address, storage_key);
-		//assert!(check_condition_op(fixed_condition.op, storage_value, fixed_condition.v));
-		false
+	} else if state_key.len() == 3 {
+        // We expect a format like: <account_address>.storage.<storage_key>
+        if state_key[1] != "storage" {
+            panic!("Expected 'storage' keyword in state key, got: {}", state_key[1]);
+        }
+
+        // Parse the third part as the storage key (which should be a 32-byte hex string)
+        let storage_key = H256::from_str(state_key[2])
+            .expect("Invalid storage key hex provided in state key");
+
+        // Retrieve the storage value from the state.
+        // (Assume your MemoryStackState has a method similar to `storage` that takes an account and a key)
+        let storage_value = state.storage(account_address, storage_key);
+
+		// TODO: See how to handle properly taking into account that we may want to compare non-numeric things
+		let storage_value_as_u256 = U256::from_big_endian(&storage_value[..]);
+        
+        // Compare the storage value with the expected value using your condition operator.
+        check_condition_op(&fixed_condition.op, storage_value_as_u256, fixed_condition.v)
+    } else {
+        panic!("Invalid state key format");
 	}
 }
 
@@ -274,8 +285,10 @@ fn prove_final_state(
 				}
 			}
 			Condition::Relative(condition) => {
+				println!("Checking relative condition: {:?}", condition);
 				let result = check_relative_condition(&pre_state, &post_state, &condition);
 				if !result {
+					println!("Relative condition failed: {:?}", condition);
 					exit_succeed = true;
 					break;
 				}
@@ -341,7 +354,6 @@ pub fn run_evm(
 		u64::MAX,
 		Vec::new(),
 	);
-
 	assert!(exit_reason == ExitReason::Succeed(ExitSucceed::Stopped));
 
 	// 4. Prove that the final state is invalid wrt the program specification
@@ -376,7 +388,7 @@ pub fn run_evm(
 	let hashed_bytecode = hash(&target_data.code);
 	outputs.push(hex::encode(hashed_bytecode));
 
-	// 6.6 The hash of other used bytecodes $SHA3((b_1) || ... || (a_m, b_m))$
+	// 6.3 The hash of other used bytecodes $SHA3((b_1) || ... || (a_m, b_m))$
 	let mut bytecode_list: Vec<String> = Vec::new();
 	for cdata in context_data {
 		bytecode_list.push(hex::encode(cdata.code));
@@ -385,15 +397,23 @@ pub fn run_evm(
 	let hashed_list = hash(&joined_context_data_hashes.as_bytes().to_vec());
 	outputs.push(hex::encode(hashed_list));
 
+	// 6.4 The address of the prover
+	// TODO: For now we use the caller, but we could use a different address sent as a parameter
+	//		 specially when supporting contract callers
+	let prover_address = H160::from_str(&caller_data.address).unwrap();
+	outputs.push(prover_address.to_string());
+
 	outputs
 }
 
 #[cfg(test)]
 mod tests {
+    use conditions::compute_mapping_storage_key;
+    use context::{build_context_account_data, ContextAccountDataType};
     use super::*;
 
 	#[test]
-	fn evm_find_new_exploit_works() {
+	fn evm_find_new_exploit_balance_works() {
 		/*
 		(**Finding a new exploit**) Calling the method ```exploit``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
 		 */
@@ -460,6 +480,109 @@ mod tests {
 
 		let hashed_context_data = hash(&"".as_bytes().to_vec());
 		assert_eq!(result[3], hex::encode(hashed_context_data));
+
+		let prover_address = H160::from_str("E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c").unwrap();
+		assert_eq!(result[4], prover_address.to_string());
 		
+	}
+
+	#[test]
+	fn evm_find_new_exploit_erc20_works() {
+		/*
+		(**Finding a new exploit**) Calling the method ```exploit_erc20``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
+		 */
+		 let calldata = "d92dbd190000000000000000000000000000000000000000000000000000000000000001"; // exploit_erc20(true)
+		 let blockchain_settings = r#"
+		 {
+			 "gas_price": "0",
+			 "origin": "0x0000000000000000000000000000000000000000",
+			 "block_hashes": "[]",
+			 "block_number": "0",
+			 "block_coinbase": "0x0000000000000000000000000000000000000000",
+			 "block_timestamp": "0",
+			 "block_difficulty": "0",
+			 "block_gas_limit": "0",
+			 "chain_id": "1",
+			 "block_base_fee_per_gas": "0"
+		 }
+		 "#;
+
+		 // First, compute the storage key for the balances mapping at the target address
+		 let computed_storage_key = compute_mapping_storage_key(
+			H160::from_str("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap(), // mapping key (address)
+			U256::from(0) // the base slot for the mapping (See ContextERC20-storageLayout.json)
+		);
+
+		 // Initialize the init storage such that the target address has a balance of 100
+		 let mut context_erc20_init_storage: BTreeMap<H256, H256> = BTreeMap::new();
+		 let amount: H256 = H256::from_low_u64_be(100000);
+		 context_erc20_init_storage.insert(computed_storage_key, amount);
+		 
+		 let erc20_account_data = build_context_account_data(
+			 ContextAccountDataType::ERC20,
+			 Some(context_erc20_init_storage)
+		 );
+		let state_path = format!("{}.storage.{}", erc20_account_data.address, hex::encode(computed_storage_key));
+		
+		let program_spec = vec![
+			 // Program specification is a list of (condition, method) pairs
+			 // Where method is defined by its method id
+			 // and condition is a list of conditions that must be satisfied for the method to be executed
+			 (
+				 Condition::Fixed(
+					// TODO: Fix this, see https://chatgpt.com/share/67b111b2-313c-800e-9131-e08bc93175bb
+					 FixedCondition {
+						 k_s: state_path,
+						 op: Operator::Gt,
+						 v: U256::from_dec_str("0").unwrap(),
+					 }
+				 ),
+				 "d92dbd19".to_string()
+			 )
+		 ];
+			 
+		let context_data = vec![erc20_account_data];
+		 let result = run_evm(
+			 calldata,
+			 AccountData { 
+				 address: "E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c".to_string(),
+				 nonce: U256::one(),
+				 balance: U256::from_dec_str("10000000000000000000").unwrap(),
+				 storage: BTreeMap::new(),
+				 code: vec![],
+			 },
+			 AccountData {
+				 address: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97".to_string(),
+				 nonce: U256::one(),
+				 balance: U256::from_dec_str("0").unwrap(),
+				 storage: BTreeMap::new(),
+				 code: hex::decode(TARGET_CONTRACT_BYTECODE).unwrap(),
+			 },
+			 context_data.clone(),
+			 program_spec.clone(),
+			 blockchain_settings
+		 );
+
+		 println!("Result [Balance before tx, Balance after tx]: {:?}", result);
+		 assert_eq!(result[0], "true"); // exploit should be found
+ 
+		 let hashed_program_spec = conditions::hash_program_spec(&program_spec);
+		 assert_eq!(result[1], hex::encode(hashed_program_spec));
+ 
+		 let hashed_bytecode = hash(&hex::decode(TARGET_CONTRACT_BYTECODE).unwrap());
+		 assert_eq!(result[2], hex::encode(hashed_bytecode));
+ 
+		let mut context_data_bytecode_list: Vec<String> = Vec::new();
+		for cdata in context_data.clone() {
+			context_data_bytecode_list.push(hex::encode(cdata.code));
+		}
+		let joined_context_data_hashes = context_data_bytecode_list.join("");
+		let hashed_list = hash(&joined_context_data_hashes.as_bytes().to_vec());
+			let hashed_context_data = hex::encode(hashed_list);
+			assert_eq!(result[3], hashed_context_data);
+
+		let prover_address = H160::from_str("E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c").unwrap();
+		assert_eq!(result[4], prover_address.to_string());
+			
 	}
 }

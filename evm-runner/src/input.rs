@@ -5,7 +5,7 @@ use primitive_types::{U256,H256};
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AccountData {
     pub address: String,
     pub nonce: U256,

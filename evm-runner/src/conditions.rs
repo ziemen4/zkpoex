@@ -1,9 +1,11 @@
 
+use ethereum_types::{H160, H256};
 use serde::{Serialize, Deserialize};
 use sha2::{Sha256, Digest};
 use alloc::string::String;
 use alloc::vec::Vec;
 use primitive_types::U256;
+use sha3::Keccak256;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Operator {
@@ -95,4 +97,23 @@ fn serialize_condition(cond: &Condition) -> Vec<u8> {
         Condition::Fixed(fixed) => serialize_fixed_condition(fixed),
         Condition::Relative(relative) => serialize_relative_condition(relative),
     }
+}
+
+pub fn compute_mapping_storage_key(key: H160, base_slot: U256) -> H256 {
+    // Convert the address to a 32-byte representation (left-padded with zeros)
+    let mut padded_key = [0u8; 32];
+    padded_key[12..].copy_from_slice(&key.as_bytes());
+
+    // Create a buffer to hold the bytes
+    let mut base_bytes = [0u8; 32];
+
+    // Convert the base_slot (U256) to 32 bytes (big-endian)
+    base_slot.to_big_endian(&mut base_bytes);
+
+    // Concatenate padded_key and base_bytes
+    let mut hasher = Keccak256::new();
+    hasher.update(&padded_key);
+    hasher.update(&base_bytes);
+    let result = hasher.finalize();
+    H256::from_slice(&result)
 }

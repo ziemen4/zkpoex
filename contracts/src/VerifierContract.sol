@@ -26,6 +26,7 @@ contract VerifierContract {
     ///         ensuring that only proofs generated from a pre-defined guest program
     ///         (in this case, checking if a number is even) are considered valid.
     bytes32 public constant imageId = ImageID.ZKPOEX_GUEST_ID;
+    uint256 public constant REWARD_IN_ETH = 1000;
 
     address public owner;
     address public target_contract;
@@ -54,8 +55,9 @@ contract VerifierContract {
             bool exploit_found, 
             bytes32 _program_spec_hash, 
             bytes32 _bytecode_hash, 
-            bytes32 _context_data_hash
-        ) = abi.decode(public_input, (bool, bytes32, bytes32, bytes32));
+            bytes32 _context_data_hash,
+            address _prover_address
+        ) = abi.decode(public_input, (bool, bytes32, bytes32, bytes32, address));
 
         // 1. Check that exploit_found is true
         require(exploit_found, "Exploit not found");
@@ -70,9 +72,9 @@ contract VerifierContract {
         require(keccak256(abi.encodePacked(_context_data_hash)) == context_data_hash, "Invalid context data hash");
 
         // If all checks pass, reward the prover
-        emit ExploitFound(msg.sender, target_contract, 1000);
+        emit ExploitFound(_prover_address, address(this), REWARD_IN_ETH);
         
         // Transfer REWARD_IN_ETH to msg.sender
-        require(payable(msg.sender).send(1000), "Transfer failed");
+        require(payable(_prover_address).send(REWARD_IN_ETH), "Transfer failed");
     }
 }

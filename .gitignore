@@ -3,3 +3,4 @@ Cargo.lock
 methods/guest/Cargo.lock
 target/**
 tests/Elf.sol
+bytecode/*.bin-runtime
