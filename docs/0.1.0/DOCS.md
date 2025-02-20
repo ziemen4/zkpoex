@@ -158,7 +158,7 @@ When upgrading the set of contracts that define the program $P$, developers **mu
 	5. At last, the guest program must write private outputs to the [host](https://dev.risczero.com/terminology#host) and public outputs to the [journal](https://dev.risczero.com/terminology#journal) 
 		1. Private inputs
 			1. The calldata of the contract $i_E$
-			2. The initial state $s$****
+			2. The initial state $s$
 		2. Public inputs (can be seen as outputs, but for the zkVM are inputs)
 			1. The hash of the program's specification used $SHA3(S)$
 			2. The hash of the bytecode used $SHA3(b)$
