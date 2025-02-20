@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use ethereum_types::{H256, U256};
 use crate::input::AccountData;
+use sha3::{Digest,Keccak256};
 
 #[derive(Debug)]
 pub enum ContextAccountDataType {
@@ -34,4 +35,15 @@ pub fn build_context_account_data(
             }
         }
     }
+}
+
+pub fn hash_context_data(context_data: &[AccountData]) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    
+    // Hash each bytecode chunk directly as raw bytes
+    for cdata in context_data {
+        hasher.update(&cdata.code);  // Use raw bytes directly
+    }
+    
+    hasher.finalize().into()
 }

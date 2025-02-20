@@ -1,7 +1,7 @@
 
 use ethereum_types::{H160, H256};
 use serde::{Serialize, Deserialize};
-use sha2::{Sha256, Digest};
+use sha2::Digest;
 use alloc::string::String;
 use alloc::vec::Vec;
 use primitive_types::U256;
@@ -38,7 +38,7 @@ pub enum Condition {
 }
 
 pub fn hash_program_spec(program_spec: &[(Condition, String)]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
+    let mut hasher = Keccak256::new();
 
     for (cond, method) in program_spec {
         let serialized_condition = serialize_condition(cond);

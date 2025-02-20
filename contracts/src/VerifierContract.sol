@@ -11,7 +11,6 @@ contract VerifierContract {
     uint256 public constant REWARD_IN_ETH = 1000;
 
     address public owner;
-    address public target_contract;
     IRiscZeroVerifier public immutable risc0_verifier_contract;
 
     // The stored hashes are computed as keccak256(abi.encodePacked(input))
@@ -22,31 +21,27 @@ contract VerifierContract {
     event ExploitFound(address indexed prover, address indexed exploit_category, uint256 reward);
 
     constructor(
-        address _target_contract, 
         address _risc0_verifier_contract,
         bytes32 _program_spec_hash,
         bytes32 _bytecode_hash,
         bytes32 _context_data_hash
     ) {
-        target_contract = _target_contract;
         risc0_verifier_contract = IRiscZeroVerifier(_risc0_verifier_contract);
         owner = msg.sender;
-        program_spec_hash = keccak256(abi.encodePacked(_program_spec_hash));
-        bytecode_hash = keccak256(abi.encodePacked(_bytecode_hash));
-        context_data_hash = keccak256(abi.encodePacked(_context_data_hash));
+        program_spec_hash = _program_spec_hash;
+        bytecode_hash = _bytecode_hash; 
+        context_data_hash = _context_data_hash;
     }
 
     /// @notice Updates the target contract and the expected hashes.
     /// @dev Only callable by the contract owner.
     function updateVerifierFields(
-        address _target_contract, 
         bytes32 _program_spec_hash,
         bytes32 _bytecode_hash,
         bytes32 _context_data_hash
     ) external {
         // TODO: Add some kind of delay to avoid owners from front-running provers.
         require(msg.sender == owner, "Only owner");
-        target_contract = _target_contract;
         program_spec_hash = keccak256(abi.encodePacked(_program_spec_hash));
         bytecode_hash = keccak256(abi.encodePacked(_bytecode_hash));
         context_data_hash = keccak256(abi.encodePacked(_context_data_hash));

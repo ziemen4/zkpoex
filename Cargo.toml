@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["host", "methods", "evm-runner"]
+exclude = ["contracts/scripts"]
+
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]
