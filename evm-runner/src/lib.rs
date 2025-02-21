@@ -578,8 +578,8 @@ mod tests {
 		}
 		let joined_context_data_hashes = context_data_bytecode_list.join("");
 		let hashed_list = hash(&joined_context_data_hashes.as_bytes().to_vec());
-			let hashed_context_data = hex::encode(hashed_list);
-			assert_eq!(result[3], hashed_context_data);
+		let hashed_context_data = hex::encode(hashed_list);
+		assert_eq!(result[3], hashed_context_data);
 
 		let prover_address = H160::from_str("E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c").unwrap();
 		assert_eq!(result[4], prover_address.to_string());
