@@ -2,11 +2,11 @@
 
 use hex;
 use sha3::{Digest, Keccak256};
-use evm_runner::conditions::{hash_program_spec, compute_mapping_storage_key, Condition, FixedCondition, Operator};
+use evm_runner::conditions::{hash_program_spec, Condition};
 use evm_runner::context::{build_context_account_data, hash_context_data, ContextAccountDataType};
-use std::collections::BTreeMap;
-use std::str::FromStr;
-use primitive_types::{U256, H160, H256};
+use std::fs;
+use serde_json::from_str;
+use std::env;
 
 /// Compute the keccak256 hash of the ERC20 context contract's runtime bytecode.
 fn compute_bytecode_hash() -> [u8; 32] {
@@ -19,48 +19,28 @@ fn compute_bytecode_hash() -> [u8; 32] {
     hasher.finalize().into()
 }
 
+fn load_program_spec(path: &str) -> Vec<(Condition, String)> {
+    let raw = fs::read_to_string(path).unwrap();
+    #[derive(serde::Deserialize)]
+    struct TempSpec {
+        condition: Condition,
+        method: String
+    }
+    
+    from_str::<Vec<TempSpec>>(&raw)
+        .unwrap()
+        .into_iter()
+        .map(|item| (item.condition, item.method))
+        .collect()
+}
+
 fn main() {
     println!("Computing deployment hashes for VerifierContract...");
 
     // 1. Compute PROGRAM_SPEC_HASH.
-    // Here we create a sample spec. In your real deployment, replace this with your actual program specification.
-    let computed_storage_key = compute_mapping_storage_key(
-        H160::from_str("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap(), // mapping key (address)
-        U256::from(0) // the base slot for the mapping (See ContextERC20-storageLayout.json)
-    );
-    let mut context_erc20_init_storage: BTreeMap<H256, H256> = BTreeMap::new();
-    let amount: H256 = H256::from_low_u64_be(100000);
-    context_erc20_init_storage.insert(computed_storage_key, amount);
-
-    let erc20_account_data = build_context_account_data(
-        ContextAccountDataType::ERC20,
-        Some(context_erc20_init_storage)
-    );
-	let state_path = format!("{}.storage.{}", erc20_account_data.address, hex::encode(computed_storage_key));
-
-    let sample_spec: Vec<(Condition, String)> = vec![
-        (
-            Condition::Fixed(
-                FixedCondition {
-                    k_s: state_path,
-                    op: Operator::Gt,
-                    v: U256::from_dec_str("0").unwrap(),
-                }
-            ),
-            "d92dbd19".to_string()
-        ),
-        (
-            Condition::Fixed(
-                FixedCondition {
-                    k_s: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97.balance".to_string(),
-                    op: Operator::Gt,
-                    v: U256::from_dec_str("0").unwrap(),
-                }
-            ),
-            "16112c6c".to_string()
-        )
-    ];
-    let program_spec_hash = hash_program_spec(&sample_spec);
+    let args: Vec<String> = env::args().collect();
+    let loadaed_program_spec_hash = load_program_spec(&args[1]);
+    let program_spec_hash = hash_program_spec(&loadaed_program_spec_hash);
 
     // 2. Compute BYTECODE_HASH.
     let bytecode_hash = compute_bytecode_hash();

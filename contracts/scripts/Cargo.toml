@@ -8,6 +8,8 @@ ethereum-types = "0.12"
 sha3 = "0.10"
 hex = "0.4"
 primitive-types =  { version = "0.12.0", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 evm-runner = { path = "../../evm-runner" }
 
 [[bin]]

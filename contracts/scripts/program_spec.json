@@ -1,0 +1,22 @@
+[
+    {
+        "condition": {
+            "Fixed": {
+                "k_s": "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97.balance",
+                "op": "Gt",
+                "v": "0"
+            }
+        },
+        "method": "16112c6c"
+    },
+    {
+        "condition": {
+            "Fixed": {
+                "k_s": "E4C2000000000000000000000000000000000000.storage.77a8c892f7ab5d424f9ebeccb8fdb4bac5c6eeca52b73ecd947e8d0dc1f81ad9",
+                "op": "Gt",
+                "v": "0"
+            }
+        },
+        "method": "d92dbd19"
+    }
+]

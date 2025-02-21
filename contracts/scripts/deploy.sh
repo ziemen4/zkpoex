@@ -1,9 +1,12 @@
 #!/bin/bash
 set -e
 
+# Load .env
+export $(grep -v '^#' ../.env | xargs)
+
 echo "Running Rust hash computation..."
 # Adjust the cargo command as needed so that it builds the binary from your workspace.
-HASHES=$(cargo run --bin deploy_hashes --release)
+HASHES=$(cargo run --bin deploy_hashes --release -- $PROGRAM_SPEC_PATH)
 
 # Parse the output and export the variables.
 export PROGRAM_SPEC_HASH=$(echo "$HASHES" | grep "ProgramSpecHash=" | cut -d'=' -f2)
@@ -17,9 +20,6 @@ echo "Computed Hashes:"
 echo "ProgramSpecHash: $PROGRAM_SPEC_HASH"
 echo "BytecodeHash: $BYTECODE_HASH"
 echo "ContextDataHash: $CONTEXT_DATA_HASH"
-
-# Load .env
-export $(grep -v '^#' ../.env | xargs)
 
 echo "Deploying contracts using forge script..."
 # Adjust the RPC URL if necessary.
