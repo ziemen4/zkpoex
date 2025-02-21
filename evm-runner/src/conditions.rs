@@ -1,10 +1,9 @@
-
-use ethereum_types::{H160, H256};
-use serde::{Serialize, Deserialize};
-use sha2::Digest;
 use alloc::string::String;
 use alloc::vec::Vec;
+use ethereum_types::{H160, H256};
 use primitive_types::U256;
+use serde::{Deserialize, Serialize};
+use sha2::Digest;
 use sha3::Keccak256;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -19,16 +18,16 @@ pub enum Operator {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FixedCondition {
-    pub k_s: String,         // State key
-    pub op: Operator,        // Operation
-    pub v: U256,              // Expected value
+    pub k_s: String,  // State key
+    pub op: Operator, // Operation
+    pub v: U256,      // Expected value
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RelativeCondition {
-    pub k_s: String,         // State key
-    pub op: Operator,        // Operation
-    pub k_s_prime: String,   // End state key
+    pub k_s: String,       // State key
+    pub op: Operator,      // Operation
+    pub k_s_prime: String, // End state key
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

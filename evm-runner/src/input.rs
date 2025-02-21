@@ -1,9 +1,8 @@
-
-use serde::{Serialize, Deserialize};
-use alloc::vec::Vec;
-use primitive_types::{U256,H256};
 use alloc::collections::BTreeMap;
 use alloc::string::String;
+use alloc::vec::Vec;
+use primitive_types::{H256, U256};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AccountData {

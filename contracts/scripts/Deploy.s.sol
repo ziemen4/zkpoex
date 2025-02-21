@@ -14,15 +14,13 @@ contract DeployScript is Script {
         // Foundry provides cheatcodes for reading env variables.
         address risc0Verifier = vm.envAddress("RISC0_VERIFIER_ADDRESS");
         bytes32 programSpecHash = vm.envBytes32("PROGRAM_SPEC_HASH");
-        bytes32 bytecodeHash = vm.envBytes32("BYTECODE_HASH");
-        bytes32 contextDataHash = vm.envBytes32("CONTEXT_DATA_HASH");
+        bytes32 contextStateHash = vm.envBytes32("CONTEXT_STATE_HASH");
 
         // Deploy the VerifierContract with the computed hashes.
         VerifierContract verifier = new VerifierContract(
             risc0Verifier,
             programSpecHash,
-            bytecodeHash,
-            contextDataHash
+            contextStateHash
         );
 
         // Optionally deploy the TargetContract.
