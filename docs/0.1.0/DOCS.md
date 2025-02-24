@@ -131,7 +131,7 @@ It is important to then verify that:
 With this verifications we ensure that, the actual bytecode that was used in the guest program is in fact the smart contract **and** that the specification which it proves to *exploit* is also the current defined specification.
 If any of these fail, it means that the proof was not created for the actual smart contract or that it was created under an outdated specification of it.
 
-![zkpoex image](/images/zkpoex-excalidraw.png)
+![zkpoex image](/docs/0.1.0/images/zkpoex-excalidraw.png)
 
 ###### On chain protocol
 Ideally, we would want said protocol to be on top of existing smart contract applications to prevent said applications from having to update. Thus we require the setup of a framework which can enable this functionality.
