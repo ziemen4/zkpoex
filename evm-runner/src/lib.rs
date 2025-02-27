@@ -24,7 +24,6 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::Deserialize;
 use serde_json::from_str;
-use sha2::{Digest, Sha256};
 
 pub const TARGET_CONTRACT_BYTECODE: &str =
     include_str!("../../bytecode/TargetContract.bin-runtime");
@@ -292,12 +291,6 @@ fn prove_final_state(
     }
 
     return exit_succeed;
-}
-
-fn hash(data: &Vec<u8>) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    hasher.finalize().into()
 }
 
 pub fn run_evm(

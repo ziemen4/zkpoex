@@ -77,7 +77,11 @@ fn main() {
     let custom_data: Vec<AccountData> = vec![];
 
     // context_state is a vector of target_data, caller_data and flattened custom_data
-    let context_state = vec![target_data, caller_data, custom_data.concat()];
+    let context_state = {
+        let mut v = vec![target_data, caller_data];
+        v.extend(custom_data);
+        v
+    };
 
     let program_spec = vec![
         // Program specification is a list of (condition, method) pairs
