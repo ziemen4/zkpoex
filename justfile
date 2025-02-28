@@ -1,26 +1,34 @@
 compile-contract:
-    solc --bin-runtime \
-        --optimize \
-        --overwrite \
-        --evm-version istanbul \
-        --output-dir bytecode \
-        contracts/src/TargetContract.sol
+    for file in contracts/src/*.sol; do \
+        solc --bin-runtime \
+            --optimize \
+            --overwrite \
+            --evm-version istanbul \
+            --output-dir bytecode \
+            $file; \
+        done
 
     solc --storage-layout --optimize --overwrite --evm-version istanbul contracts/src/ContextTemplateERC20.sol > contracts/out/ContextTemplateERC20_layout.json
-
-    solc --bin-runtime \
-        --optimize \
-        --overwrite \
-        --evm-version istanbul \
-        --output-dir bytecode \
-        contracts/src/ContextTemplateERC20.sol
 
 test-evm: compile-contract
     cargo test -p evm-runner -- --nocapture
 
-prove: compile-contract
-    RUST_BACKTRACE=full cargo run --release -p host
+prove function params conditions contract_bytecode: compile-contract
+    @echo "Running with function={{function}}, params={{params}}, conditions={{conditions}}, contract_bytecode={{contract_bytecode}}"
+    RISC0_DEV_MODE=true RUST_LOG=full RUST_BACKTRACE=1 \
+    cargo run --release -p host -- \
+        --function "{{function}}" \
+        --params "{{params}}" \
+        --conditions "{{conditions}}" \
+        --contract-bytecode "{{contract_bytecode}}"
 
-prove-bonsai: compile-contract
-    RISC0_DEV_MODE=1 RUST_LOG=info RISC0_INFO=1 BONSAI_API_KEY=<API-KEY> BONSAI_API_URL=https://api.bonsai.xyz/ cargo run --release -p host
+prove-bonsai function params conditions contract_bytecode: compile-contract
+    @echo "Running with function={{function}}, params={{params}}, conditions={{conditions}}, contract_bytecode={{contract_bytecode}}"
+    RISC0_DEV_MODE=false RUST_LOG=full RUST_BACKTRACE=1 \
+    BONSAI_API_KEY=J8ZXydQGyGMWvK8BVXa92Juxi0u2eZl8MpH0v632 BONSAI_API_URL=https://api.bonsai.xyz/ \
+    cargo run --release -p host -- \
+        --function "{{function}}" \
+        --params "{{params}}" \
+        --conditions "{{conditions}}" \
+        --contract-bytecode "{{contract_bytecode}}"
 
