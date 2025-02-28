@@ -14,3 +14,5 @@ serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 hex-literal = { version = "0.3.4", default-features = false  }
 hex = { version = "0.4", default-features = false, features = [ "alloc" ]  }
 evm-runner = { path = "../evm-runner" }
+clap = { version = "4.0", features = ["derive"] } 
+tiny-keccak = { version = "2.0", features = ["keccak"] }
