@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IRiscZeroVerifier } from "risc0/IRiscZeroVerifier.sol";
+import { IRiscZeroVerifier } from "../lib/risc0-ethereum/contracts/src/IRiscZeroVerifier.sol";
 import { ImageID } from "./ImageID.sol";
 
 contract VerifierContract {
