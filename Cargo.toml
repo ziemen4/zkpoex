@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["host", "methods", "evm-runner"]
+members = ["host", "methods", "evm-runner", "shared"]
 exclude = ["contracts/scripts"]
 
 
