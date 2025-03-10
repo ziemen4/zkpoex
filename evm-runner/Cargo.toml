@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+shared = { path = "../shared" }
 hex = { version = "0.4", default-features = false, features = [ "alloc" ]  }
 evm = { version = "0.42.0", default-features = false, features = ["with-serde"] }
 primitive-types =  { version = "0.12.0", default-features = false }

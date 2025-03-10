@@ -9,10 +9,17 @@ contract OverUnderFlowVulnerable {
     }
 
     function deposit(uint256 amount) public {
-        balance += amount; // Vulnerabilità: se 'amount' è troppo grande, può causare un overflow
+        unchecked {
+            balance += amount;
+        }
     }
 
     function withdraw(uint256 amount) public {
-        balance -= amount; // Vulnerabilità: se 'amount' è troppo grande, può causare un underflow
+        unchecked {
+            balance -= amount;
+        }
     }
+        
+    // Fallback function to receive Ether
+    receive() external payable {}
 }
