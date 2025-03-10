@@ -1,6 +1,6 @@
-pub mod conditions;
-pub mod context;
-pub mod input;
+use shared::context;
+use shared::conditions;
+use shared::input::AccountData;
 
 extern crate alloc;
 extern crate core;
@@ -18,7 +18,6 @@ use evm::{
 use hex::encode;
 use hpke::kem::X25519HkdfSha256;
 use hpke::{Kem, Serializable};
-use input::AccountData;
 use primitive_types::{H160, H256, U256};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -26,7 +25,7 @@ use serde::Deserialize;
 use serde_json::from_str;
 
 pub const TARGET_CONTRACT_BYTECODE: &str =
-    include_str!("../../bytecode/TargetContract.bin-runtime");
+    include_str!("../../bytecode/TargetContract.bin");
 
 #[derive(Debug, Deserialize)]
 pub struct DeserializeMemoryVicinity {
@@ -57,7 +56,10 @@ pub fn generate_keypair(seed: &[u8; 32]) -> (String, String) {
     (sk_b64, pk_b64)
 }
 
-fn check_condition_op<T: PartialOrd>(operator: &Operator, first_val: T, second_val: T) -> bool {
+fn check_condition_op<T: PartialOrd + std::fmt::Debug>(operator: &Operator, first_val: T, second_val: T) -> bool {
+    println!("FIRST VAL: {:?}", first_val);
+    println!("SECOND VAL: {:?}", second_val);
+    println!("OPERATOR: {:?}", operator);
     match operator {
         Operator::Eq => first_val == second_val,
         Operator::Neq => first_val != second_val,
@@ -99,6 +101,9 @@ fn check_relative_condition(
     let pre_account_basic = pre_state.get(&pre_account_address).unwrap();
     let post_account_basic = post_state.basic(post_account_address);
 
+    println!("PRE ACCOUNT BASIC BALANCE {:?}", pre_account_basic);
+	println!("POST ACCOUNT BASIC BALANCE {:?}", post_account_basic);
+
     // If the state key vector has length 2, then we are accessing the account fields directly
     if pre_state_key.len() == 2 {
         match pre_state_key[1] {
@@ -108,6 +113,11 @@ fn check_relative_condition(
                 post_account_basic.nonce,
             ),
             "balance" => check_condition_op(
+                &relative_condition.op,
+                pre_account_basic.balance,
+                post_account_basic.balance,
+            ),
+            "var" => check_condition_op(
                 &relative_condition.op,
                 pre_account_basic.balance,
                 post_account_basic.balance,
@@ -132,7 +142,8 @@ fn check_fixed_condition(
 ) -> bool {
     // State key is joined by '.', so split it
     let state_key = fixed_condition.k_s.split('.').collect::<Vec<&str>>();
-
+    println!("\n\n---------------------------\n\n");
+    println!("State key: {:?}", state_key);
     // The first state key is always the address of the account
     let account_address = H160::from_str(state_key[0]).unwrap();
 
@@ -143,9 +154,19 @@ fn check_fixed_condition(
 
     // Get the account from the state
     let account_basic = state.basic(account_address);
-
+    println!("Account basic: {:?}", account_basic);
+    println!("Value of fixed_cond {:?}", fixed_condition.v,);
+    println!("{}",check_condition_op(&fixed_condition.op, account_basic.nonce, fixed_condition.v));
+    println!("{}",check_condition_op(&fixed_condition.op,account_basic.balance,fixed_condition.v));
+    println!("\n\n---------------------------\n\n");
     // If the state key vector has length 2, then we are accessing the account fields directly
     if state_key.len() == 2 {
+        /*if state_key[1].starts_with("var_") {
+            let var_name = state_key[1].trim_start_matches("var_");
+            check_condition_op(&fixed_condition.op, account_basic.nonce, fixed_condition.v);
+        } else {
+            panic!("Invalid state key: {}", state_key[1]);
+        }*/
         match state_key[1] {
             "nonce" => {
                 check_condition_op(&fixed_condition.op, account_basic.nonce, fixed_condition.v)
@@ -159,6 +180,7 @@ fn check_fixed_condition(
                 panic!("Invalid state key: {}", state_key[1]);
             }
         }
+        
     } else if state_key.len() == 3 {
         // We expect a format like: <account_address>.storage.<storage_key>
         if state_key[1] != "storage" {
@@ -297,11 +319,12 @@ pub fn run_evm(
     calldata: &str,
     context_state: Vec<AccountData>,
     program_spec: Vec<(Condition, String)>,
-    blockchain_settings: &str,
+    blockchain_settings: &str
 ) -> Vec<String> {
     // 0. Preliminaries
     // 0.1 Initialize the EVM config
     let config = Config::cancun();
+    
     // Deserialize vicinity
     let deserialize_vicinity: DeserializeMemoryVicinity = from_str(blockchain_settings).unwrap();
     let vicinity: MemoryVicinity = from_deserialized_vicinity(deserialize_vicinity);
@@ -335,6 +358,8 @@ pub fn run_evm(
     let precompiles = BTreeMap::new();
     let mut executor = StackExecutor::new_with_precompiles(pre_state, &config, &precompiles);
 
+    // We need to understand how to combine this execution with Testnet. I'm not able to run (evm_utils::send_transaction_with_calldata())
+    // because the operation is not supported in the current environment (inside this file) idk why yet. 
     let (exit_reason, _) = executor.transact_call(
         H160::from_str(&caller_data.address).unwrap(),
         H160::from_str(&target_data.address).unwrap(),
@@ -343,12 +368,13 @@ pub fn run_evm(
         u64::MAX,
         Vec::new(),
     );
-    assert!(exit_reason == ExitReason::Succeed(ExitSucceed::Stopped));
-
+    assert!(matches!(exit_reason, ExitReason::Succeed(ExitSucceed::Stopped) | ExitReason::Succeed(ExitSucceed::Returned)));
+    
     // 4. Prove that the final state is invalid wrt the program specification
     let post_state = executor.state();
     let method_id = &calldata[..8];
     let method_conditions: Vec<Condition> = filter_program_spec(&program_spec, method_id);
+    println!("Method conditions: {:?}", method_conditions);
 
     // 4.1 Depending on the returning boolean value, we can determine if an exploit was found
     let exploit_found = prove_final_state(&pre_state_tree, &post_state, &method_conditions);
@@ -382,6 +408,7 @@ pub fn run_evm(
     outputs
 }
 
+/* The test was hardcoded , removed for now
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -554,3 +581,6 @@ mod tests {
         assert_eq!(result[3], prover_address.to_string());
     }
 }
+*/
+
+

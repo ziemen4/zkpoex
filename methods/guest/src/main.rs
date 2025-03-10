@@ -2,33 +2,38 @@ extern crate alloc;
 
 use risc0_zkvm::guest::env;
 use evm_runner::run_evm;
-use evm_runner::conditions::Condition;
-use evm_runner::input::AccountData;
+use shared::conditions::Condition;
+use shared::input::AccountData;
 use alloc::{vec::Vec, string::String};
 
 fn main() {
     let start = env::cycle_count();
 
     let calldata: String = env::read();
-    println!("Read calldata successfully");
+    println!("\n------------- GUEST: READ CALLDATA -------------\n");
     println!("{:?}", calldata);
-    
+    println!("\n------------------------------------------------\n");
     // TODO: See if we can deserialize directly into Vec<AccountData>, instead of String
     let context_state: Vec<AccountData> = env::read();
+    println!("\n------------- GUEST: CONTEXT STATE -------------\n");
     println!("Deserialized {} account states", context_state.len());
+    println!("\n------------------------------------------------\n");
 
     // TODO: See if we can deserialize directly into Vec<Condition>, instead of String
     let _program_spec: String = env::read();
-    println!("Read program_spec successfully");
+    println!("\n------------- GUEST: PROGRAM SPEC -------------\n");
     println!("{:?}", _program_spec);
+    println!("\n------------------------------------------------\n");
 
     let blockchain_settings: String = env::read();
-    println!("Read blockchain_settings successfully");
+    println!("\n------------- GUEST: BLOCKCHAIN SETTINGS -------------\n");
     println!("{:?}", blockchain_settings);
+    println!("\n------------------------------------------------\n");
 
     let program_spec: Vec<(Condition, String)> = serde_json::from_str(&_program_spec).unwrap();
-    println!("Converted program_spec successfully");
+    println!("\n------------- GUEST: PROGRAM SPEC -------------\n");
     println!("{:?}", program_spec);
+    println!("\n------------------------------------------------\n");
 
     // Log input_json
     let result = run_evm(

@@ -5,14 +5,14 @@ edition = "2021"
 
 [dependencies]
 methods = { path = "../methods" }
+shared = { path = "../shared" }
 risc0-zkvm = { version = "1.2.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-serde = "1.0"
-primitive-types =  { version = "0.12.0", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+primitive-types = { version = "0.12.0", default-features = false }
 evm = { version = "0.42.0", default-features = false }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-hex-literal = { version = "0.3.4", default-features = false  }
-hex = { version = "0.4", default-features = false, features = [ "alloc" ]  }
-evm-runner = { path = "../evm-runner" }
-clap = { version = "4.0", features = ["derive"] } 
-tiny-keccak = { version = "2.0", features = ["keccak"] }
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
+clap = { version = "4.0", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+dotenv = "0.15"
