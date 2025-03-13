@@ -102,6 +102,15 @@ pub mod utils {
         }
     }
 
+    pub fn extract_key_from_condition(condition: &str) -> String {
+        let parts: Vec<&str> = condition.split_whitespace().collect();
+        if parts.len() != 3 {
+            panic!("Invalid condition format: {}", condition);
+        }
+        let key = parts[0];
+        key.to_string()
+    }
+
     /// -------------------------------------------
     /// Parses CLI arguments and returns the matches.
     /// -------------------------------------------
@@ -162,6 +171,7 @@ pub mod evm_utils {
     use primitive_types::H256;
     use std::collections::BTreeMap;
     use std::error::Error;
+    use serde_json::from_str;
     /// -------------------------------------------
     /// Executes a cast command and returns the output as a String
     /// -------------------------------------------
@@ -175,6 +185,70 @@ pub mod evm_utils {
         } else {
             Err(format!("Command failed: {}", str::from_utf8(&output.stderr)?).into())
         }
+    }
+
+    /// -------------------------------------------
+    /// Executes a solc command and returns the output as a String
+    /// -------------------------------------------
+    fn run_solc_command(args: &[&str]) -> Result<String, Box<dyn std::error::Error>> {
+        println!("--------------------------------------------------");
+        println!("Executing command: solc {:?}", args);
+        println!("--------------------------------------------------");
+        let output = ProcessCommand::new("solc").args(args).output()?;
+        if output.status.success() {
+            Ok(String::from_utf8(output.stdout)?.trim().to_string())
+        } else {
+            Err(format!("Command failed: {}", String::from_utf8(output.stderr)?).into())
+        }
+    }
+
+    /// -------------------------------------------
+    /// Get the storage layout for a given contract
+    /// -------------------------------------------
+    fn get_storage_layout(contract_file: &str) -> Result<HashMap<String, usize>, Box<dyn std::error::Error>> {
+        let output = run_solc_command(&[
+            "--storage-layout",  contract_file
+        ])?;
+
+        // Get the storage layout from the output parsing in json format
+        let storage_layout_start : Vec<&str> = output.split("\n").collect();
+        let json_string = storage_layout_start[2];
+        let json: Value = from_str(&json_string)?;
+        let storage_layout = &json["storage"];
+
+        // Parse the storage layout and store it in a HashMap
+        let mut storage_slots = HashMap::new();
+        if let Some(entries) = storage_layout.as_array() {
+            for entry in entries {
+                if let Some(label) = entry["label"].as_str() {
+                    if let Some(slot) = entry["slot"].as_str() {
+                        let slot_number = slot.parse::<usize>()?;
+                        storage_slots.insert(label.to_string(), slot_number);
+                    }
+                }
+            }
+        }
+        Ok(storage_slots)
+    }
+
+    /// -------------------------------------------
+    /// Get the storage slots for a given set of variables in a contract
+    /// -------------------------------------------
+    pub fn get_storage_slots_for_variables(
+        contract_file: &str,
+        variables: &HashMap<String, String>
+    ) -> Result<HashMap<String, usize>, Box<dyn std::error::Error>> {
+        let storage_layout = get_storage_layout(contract_file)?;
+        let mut result = HashMap::new();
+        for (var_name, _) in variables {
+            if let Some(&slot) = storage_layout.get(var_name) {
+                result.insert(var_name.clone(), slot);
+            } else {
+                return Err(format!("Variable '{}' not found in storage layout", var_name).into());
+            }
+        }
+
+        Ok(result)
     }
 
     /// -------------------------------------------
@@ -222,6 +296,7 @@ pub mod evm_utils {
             },
             None => Err("Failed to extract contract address from deployment output".into()),
         }
+        
     }
 
     /// -------------------------------------------
@@ -243,19 +318,30 @@ pub mod evm_utils {
     /// -------------------------------------------
     /// Populates contract variables from an ABI file
     /// -------------------------------------------
-    pub fn populate_contract_variables_from_abi(abi_file_path: std::path::PathBuf) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+    pub fn populate_state_variables_from_abi(abi_file_path: std::path::PathBuf) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
         let abi_data = fs::read_to_string(abi_file_path)?;
         let abi: Value = serde_json::from_str(&abi_data)?;
         
-        let mut contract_variables = HashMap::new();
-    
+        let mut state_variables = HashMap::new();
+
         if let Some(types) = abi.as_array() {
             for item in types {
-                if let Some(inputs) = item["inputs"].as_array() {
-                    for input in inputs {
-                        if let Some(name) = input["name"].as_str() {
-                            if let Some(var_type) = input["type"].as_str() {
-                                contract_variables.insert(name.to_string(), var_type.to_string());
+                // Verifica se è una funzione
+                if item["type"].as_str() == Some("function") {
+                    // Verifica se la funzione è un getter (nessun input e un solo output)
+                    if let Some(inputs) = item["inputs"].as_array() {
+                        if inputs.is_empty() {
+                            if let Some(outputs) = item["outputs"].as_array() {
+                                if outputs.len() == 1 {
+                                    if let Some(output) = outputs.get(0) {
+                                        if let Some(var_type) = output["type"].as_str() {
+                                            // Usa il nome della funzione come nome della variabile di stato
+                                            if let Some(name) = item["name"].as_str() {
+                                                state_variables.insert(name.to_string(), var_type.to_string());
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -263,8 +349,8 @@ pub mod evm_utils {
             }
         }
 
-        // Restituisce le variabili raccolte
-        Ok(contract_variables)
+        // Restituisce le variabili di stato dedotte
+        Ok(state_variables)
     }
 
     /// -------------------------------------------
@@ -542,8 +628,7 @@ pub mod context {
         ERC20,
     }
     const CONTEXT_ERC20_CONTRACT_ADDRESS: &str = "E4C2000000000000000000000000000000000000";
-    const CONTEXT_ERC20_CONTRACT_BYTECODE: &str =
-        include_str!("../../bytecode/ContextTemplateERC20.bin");
+    const CONTEXT_ERC20_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/ContextTemplateERC20.bin");
 
     /// -------------------------------------------
     /// Builds account data for a context-specific contract

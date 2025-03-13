@@ -161,25 +161,19 @@ fn check_fixed_condition(
     println!("\n\n---------------------------\n\n");
     // If the state key vector has length 2, then we are accessing the account fields directly
     if state_key.len() == 2 {
-        /*if state_key[1].starts_with("var_") {
-            let var_name = state_key[1].trim_start_matches("var_");
-            check_condition_op(&fixed_condition.op, account_basic.nonce, fixed_condition.v);
-        } else {
-            panic!("Invalid state key: {}", state_key[1]);
-        }*/
         match state_key[1] {
-            "nonce" => {
+            "nonce" => check_condition_op(&fixed_condition.op, account_basic.nonce, fixed_condition.v),
+            "balance" => check_condition_op(&fixed_condition.op, account_basic.balance, fixed_condition.v),
+
+            //if the input of is something like "var_<nam variable> == <number>" 
+            // example: just prove "withdraw(uint256)" "1001" "var_balance == 115792089237316195423570985008687907853269984665640564039457584007913129639935" "./bytecode/OverUnderFlowVulnerable.bin" "testnet" "./bytecode/OverUnderFlowVulnerable.abi"
+            _ if state_key[1].starts_with("var_") => {
+                let _ = state_key[1].trim_start_matches("var_");
                 check_condition_op(&fixed_condition.op, account_basic.nonce, fixed_condition.v)
             }
-            "balance" => check_condition_op(
-                &fixed_condition.op,
-                account_basic.balance,
-                fixed_condition.v,
-            ),
-            _ => {
-                panic!("Invalid state key: {}", state_key[1]);
-            }
+            _ => panic!("Invalid state key: {}", state_key[1]),
         }
+
         
     } else if state_key.len() == 3 {
         // We expect a format like: <account_address>.storage.<storage_key>
@@ -328,6 +322,7 @@ pub fn run_evm(
     // Deserialize vicinity
     let deserialize_vicinity: DeserializeMemoryVicinity = from_str(blockchain_settings).unwrap();
     let vicinity: MemoryVicinity = from_deserialized_vicinity(deserialize_vicinity);
+    println!("Vicinity: {:?}", vicinity);
 
     // 0.2 Obtain the caller, target and context data
     let target_data = context_state[0].clone();
@@ -368,6 +363,7 @@ pub fn run_evm(
         u64::MAX,
         Vec::new(),
     );
+
     assert!(matches!(exit_reason, ExitReason::Succeed(ExitSucceed::Stopped) | ExitReason::Succeed(ExitSucceed::Returned)));
     
     // 4. Prove that the final state is invalid wrt the program specification

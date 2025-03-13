@@ -54,13 +54,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conditions = matches.get_one::<String>("conditions").unwrap();
     let contract_bytecode_file = matches.get_one::<std::path::PathBuf>("contract-bytecode").unwrap();
     let abi_file = <std::path::PathBuf>::from(matches.get_one::<String>("abi").unwrap());
-
-    //TODO: handle the contract_variables to calculate dinamically the slot to get the storage of a contract variable
-    let contract_variables = evm_utils::populate_contract_variables_from_abi(abi_file).expect("Failed to populate contract variables from abi");
-    println!("contract_variables: {:?}", contract_variables);
-
-
-
     let blockchain_settings = evm_utils::get_blockchain_settings().await?;
 
     // Read the contract bytecode file --> Generate the calldata dynamically
@@ -73,9 +66,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let td_nonce = U256::from_dec_str(&evm_utils::get_nonce(&td_address).await?).expect("Failed to parse nonce");
     let td_balance = U256::from_dec_str(&evm_utils::get_balance(&td_address).await?).expect("Failed to parse balance");
     
-    //TODO: handle the contract storage and  TODO: verify if the storage is updated correctly
-    //I used get_storage_at() function to get the storage of the contract at a given slot (in this case 0 as an example)
-    let td_storage = evm_utils::get_storage_at(&td_address, "0").await?;
+    let td_storage = if conditions.contains("var_") {
+        // Use get_storage_at() to get the storage of the contract at a given slot
+        let contract_variables = evm_utils::populate_state_variables_from_abi(abi_file)
+            .expect("Failed to populate contract variables from ABI");
+        
+        // Dynamically get the file.sol from testnet (this needs implementation)
+        // Change fot the file.sol that you want to extract the storage_slots
+        let storage_slots = evm_utils::get_storage_slots_for_variables(
+            "contracts/src/examples/TargetContract.sol",
+            &contract_variables
+        )?;
+        
+        let key_var = utils::extract_key_from_condition(conditions);
+        let var_name = key_var.trim_start_matches("var_");
+        let var_name_str = storage_slots.get(var_name)
+            .expect("Key not found in storage_slots").to_string();
+        
+        evm_utils::get_storage_at(&td_address, &var_name_str).await?
+    } else {
+        BTreeMap::new()
+    };
+    
+
+    println!("Contract storage: {:?}", td_storage);
 
     //---------------------------------------------------------------------------------------------------------------------
 
@@ -88,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         address: td_address.clone(),
         nonce: td_nonce,
         balance: td_balance,
-        storage: BTreeMap::new(),
+        storage: td_storage,
         code: td_code,
     };
 
