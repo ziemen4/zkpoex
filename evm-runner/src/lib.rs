@@ -24,9 +24,6 @@ use rand::SeedableRng;
 use serde::Deserialize;
 use serde_json::from_str;
 
-pub const TARGET_CONTRACT_BYTECODE: &str =
-    include_str!("../../bytecode/TargetContract.bin");
-
 #[derive(Debug, Deserialize)]
 pub struct DeserializeMemoryVicinity {
     pub gas_price: String,
@@ -353,8 +350,6 @@ pub fn run_evm(
     let precompiles = BTreeMap::new();
     let mut executor = StackExecutor::new_with_precompiles(pre_state, &config, &precompiles);
 
-    // We need to understand how to combine this execution with Testnet. I'm not able to run (evm_utils::send_transaction_with_calldata())
-    // because the operation is not supported in the current environment (inside this file) idk why yet. 
     let (exit_reason, _) = executor.transact_call(
         H160::from_str(&caller_data.address).unwrap(),
         H160::from_str(&target_data.address).unwrap(),
@@ -363,6 +358,7 @@ pub fn run_evm(
         u64::MAX,
         Vec::new(),
     );
+    println!("Exit reason: {:?}", exit_reason);
 
     assert!(matches!(exit_reason, ExitReason::Succeed(ExitSucceed::Stopped) | ExitReason::Succeed(ExitSucceed::Returned)));
     
@@ -404,12 +400,14 @@ pub fn run_evm(
     outputs
 }
 
-/* The test was hardcoded , removed for now
 #[cfg(test)]
 mod tests {
     use super::*;
     use conditions::compute_mapping_storage_key;
     use context::{build_context_account_data, ContextAccountDataType};
+
+    pub const TARGET_CONTRACT_BYTECODE: &str =
+        include_str!("../../bytecode/TargetContract.bin-runtime");
 
     #[test]
     fn evm_find_new_exploit_balance_works() {
@@ -468,7 +466,7 @@ mod tests {
             program_spec.clone(),
             blockchain_settings,
         );
-        println!("Result [Balance before tx, Balance after tx]: {:?}", result);
+        println!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);
@@ -481,6 +479,7 @@ mod tests {
         assert_eq!(result[3], prover_address.to_string());
     }
 
+    
     #[test]
     fn evm_find_new_exploit_erc20_works() {
         /*
@@ -564,7 +563,7 @@ mod tests {
             blockchain_settings,
         );
 
-        println!("Result [Balance before tx, Balance after tx]: {:?}", result);
+        println!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);
@@ -577,6 +576,3 @@ mod tests {
         assert_eq!(result[3], prover_address.to_string());
     }
 }
-*/
-
-

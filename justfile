@@ -4,17 +4,9 @@ compile-contract:
     @echo "============================================================"
     solc-select use 0.8.20 && \
     for file in contracts/src/examples/*.sol; do \
-        solc --bin \
-             --optimize \
-             --overwrite \
-             --evm-version shanghai \
-             --output-dir bytecode \
-             $file; \
-    done
-
-    for file in contracts/src/examples/*.sol; do \
         solc --abi \
              --bin \
+             --bin-runtime \
              --optimize \
              --overwrite \
              --evm-version shanghai \
@@ -22,9 +14,10 @@ compile-contract:
              $file; \
     done
 
-
     for file in contracts/src/*.sol; do \
-        solc --bin \
+        solc --abi \
+             --bin \
+             --bin-runtime \
              --optimize \
              --overwrite \
              --evm-version shanghai \

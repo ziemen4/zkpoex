@@ -3,5 +3,7 @@ Cargo.lock
 methods/guest/Cargo.lock
 target/**
 tests/Elf.sol
+bytecode/*.bin
 bytecode/*.bin-runtime
+bytecode/*.abi
 .env

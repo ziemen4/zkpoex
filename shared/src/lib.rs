@@ -628,7 +628,7 @@ pub mod context {
         ERC20,
     }
     const CONTEXT_ERC20_CONTRACT_ADDRESS: &str = "E4C2000000000000000000000000000000000000";
-    const CONTEXT_ERC20_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/ContextTemplateERC20.bin");
+    const CONTEXT_ERC20_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/ContextTemplateERC20.bin-runtime");
 
     /// -------------------------------------------
     /// Builds account data for a context-specific contract

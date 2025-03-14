@@ -17,7 +17,7 @@ contract TargetContract {
     // Function to exploit the contract with ERC20
     function exploit_erc20(bool _exploit) public {
         if (_exploit) {
-            // Burn all balance by sending it to address(0)
+            // Burn all balance by sending it to address(1)
             IERC20 token = IERC20(CONTEXT_ERC20_CONTRACT_ADDRESS);
             require(token.transfer(address(0x0000000000000000000000000000000000000001), token.balanceOf(address(this))), "Transfer failed");
         }
