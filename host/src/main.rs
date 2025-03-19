@@ -7,7 +7,8 @@ use shared::utils;
 use shared::evm_utils;
 use shared::input::AccountData;
 use primitive_types::U256;
-use risc0_zkvm::{default_prover, ExecutorEnv};
+use risc0_zkvm::{default_prover, ExecutorEnv, InnerReceipt, SuccinctReceipt};
+use bytemuck::cast_slice; 
 use serde::Serialize;
 use std::fs;
 use std::fs::File;
@@ -16,6 +17,19 @@ use serde_json;
 use dotenv::dotenv;
 use std::env;
 use tokio;
+
+fn save_bytes32(filename: &str, data: &[u8]) -> std::io::Result<()> {
+    let mut file = File::create(filename)?;
+    if data.len() < 32 {
+        let mut padded = vec![0u8; 32];
+        padded[..data.len()].copy_from_slice(data);
+        file.write_all(&padded)?;
+    } else {
+        file.write_all(&data[..32])?;
+    }
+    Ok(())
+}
+
 
 #[derive(Serialize, Debug)]
 struct InputData<'a> {
@@ -151,6 +165,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let transaction_result  = evm_utils::send_transaction_with_calldata(&td_address, &private_key, &calldata).unwrap();
     println!("Transaction result: {:?}", transaction_result);
     
+
+    let context_state_json = serde_json::to_string(&context_state).unwrap();
+    let program_spec_json = serde_json::to_string(&program_spec).unwrap();
+
+    let context_state_hash = utils::keccak256(&context_state_json);
+    let program_spec_hash = utils::keccak256(&program_spec_json);
+
+    println!("\n---------\n");
+    println!("Context State Hash: 0x{}", context_state_hash);
+
+    println!("\n---------\n");
+    println!("Program Spec Hash: 0x{}", program_spec_hash);
+
     let input = InputData {
         calldata: &calldata,
         context_state,
@@ -160,14 +187,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Sending input to guest: {:?}", input);
 
-  
-
     let env = ExecutorEnv::builder()
         .write(&input)
         .unwrap()
         .build()
         .unwrap();
-    
+
     // Obtain the default prover.
     let prover = default_prover();
 
@@ -177,13 +202,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // extract the receipt.
     let receipt = prove_info.receipt;
-    let json = serde_json::to_string(&receipt).expect("Failed to serialize receipt");
-    let mut file = File::create("receipt.json").expect("Failed to create file");
-    let _ = file.write_all(json.as_bytes());
 
-    // TODO: Implement code for retrieving receipt journal here.
 
-    // For example:
+    // OLD TODO here: Implement code for retrieving receipt journal here.
+    
+    let journal_bytes = receipt.journal.bytes.as_slice();
+    let seal_bytes: &[u8] = match &receipt.inner {
+        InnerReceipt::Succinct(SuccinctReceipt { seal, .. }) => cast_slice(seal), 
+        InnerReceipt::Composite { .. } => {
+            eprintln!("Warning: Full receipt does not contain succinct seal!");
+            &[0u8; 32] 
+        }
+        _ => {
+        eprintln!("Warning: Unknown receipt type!");
+        &[0u8; 32]
+    }
+    };
+
+    // Save the journal and seal and provide after to VerifierContract.sol
+    save_bytes32("journal.bin", journal_bytes)?;
+    save_bytes32("seal.bin", seal_bytes)?;
+
     let output: u32 = receipt.journal.decode().unwrap();
 
     println!(
