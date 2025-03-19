@@ -2,11 +2,15 @@
 pragma solidity ^0.8.0;
 
 import { IRiscZeroVerifier } from "../lib/risc0-ethereum/contracts/src/IRiscZeroVerifier.sol";
-import { ImageID } from "./ImageID.sol";
+
+/// @notice Interface for the ImageID contract. 
+interface IImageID {
+    function ZKPOEX_GUEST_ID() external view returns (bytes32);
+}
 
 contract VerifierContract {
     /// @notice Image ID of the only zkVM binary to accept verification from.
-    bytes32 public constant imageId = ImageID.ZKPOEX_GUEST_ID;
+    bytes32 public imageId;
     /// @notice Reward amount (in wei) for a valid exploit.
     uint256 public constant REWARD_IN_ETH = 1000;
 
@@ -22,12 +26,14 @@ contract VerifierContract {
     constructor(
         address _risc0_verifier_contract,
         bytes32 _program_spec_hash,
-        bytes32 _context_state_hash
+        bytes32 _context_state_hash,
+        address _image_id_contract
     ) {
         risc0_verifier_contract = IRiscZeroVerifier(_risc0_verifier_contract);
         owner = msg.sender;
         program_spec_hash = _program_spec_hash;
         context_state_hash = _context_state_hash; 
+        imageId = IImageID(_image_id_contract).ZKPOEX_GUEST_ID();
     }
 
     /// @notice Updates the target contract and the expected hashes.

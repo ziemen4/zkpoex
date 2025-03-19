@@ -39,6 +39,22 @@ compile-contract:
 test-evm: compile-contract
     cargo test -p evm-runner -- --nocapture
 
+deploy-verifier network: compile-contract
+    sh -c ' \
+      if [ "{{network}}" = "testnet" ]; then \
+        export ETH_RPC_URL="https://ethereum-holesky-rpc.publicnode.com"; \
+        echo "test ETH_RPC_URL: $ETH_RPC_URL"; \
+      elif [ "{{network}}" = "mainnet" ]; then \
+        export ETH_RPC_URL="https://ethereum-rpc.publicnode.com"; \
+        echo "main ETH_RPC_URL: $ETH_RPC_URL"; \
+      else \
+        echo "⚠️ Network is unknown, ETH_RPC_URL not set"; \
+        export ETH_RPC_URL=""; \
+      fi; \
+      echo "ETH_RPC_URL: $ETH_RPC_URL"; \
+      cargo run --release -p sc-owner -- --no-capture   \
+    '
+
 prove function params conditions contract_bytecode network abi: compile-contract
     @echo "============================================================"
     @echo "🚀 Starting exploit local proving (dev mode: true):"

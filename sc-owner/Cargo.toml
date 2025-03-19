@@ -1,0 +1,9 @@
+[package]
+name = "sc-owner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+shared = { path = "../shared" }
+tokio = { version = "1", features = ["full"] }
+dotenv = "0.15"

@@ -112,6 +112,19 @@ pub mod utils {
     }
 
     /// -------------------------------------------
+    /// Hashes a string using the Keccak256 algorithm.
+    /// -------------------------------------------
+    pub fn keccak256(input: &str) -> String {
+        let mut hasher = Keccak::v256();
+        let mut output = [0u8; 32];
+
+        hasher.update(input.as_bytes());
+        hasher.finalize(&mut output);
+
+        hex::encode(output) 
+    }
+
+    /// -------------------------------------------
     /// Parses CLI arguments and returns the matches.
     /// -------------------------------------------
     pub fn parse_cli_args() -> clap::ArgMatches {
@@ -286,6 +299,7 @@ pub mod evm_utils {
     pub fn deploy_contract(private_key: &str, bytecode: &str) -> Result<String, Box<dyn std::error::Error>> {
         let deploy_output = run_cast_command(&["send", "--private-key", private_key, "--create", bytecode])?;
         
+
         // Just for testing purposes...
         // Send to the contract address 1 Ether if the deployment was successful to fund the contract 
         match extract_contract_address(&deploy_output) {
@@ -298,6 +312,68 @@ pub mod evm_utils {
         }
         
     }
+
+    /// -------------------------------------------
+    /// Deploys the Verifier smart contract using a given RPC URL and private key
+    /// -------------------------------------------
+    pub fn deploy_verifier_contract(
+        private_key: &str,
+        bytecode: &str,
+        risc0_verifier_contract: &str,
+        program_spec_hash: &str,
+        context_state_hash: &str,
+        image_id: &str
+    ) -> Result<String, Box<dyn Error>> {
+
+        // ABI-encode the constructor parameters to deploy a SC with constructor arguments
+        let abi_encoded_params = run_cast_command(&[
+            "abi-encode",
+            "constructor(address,bytes32,bytes32,address)",
+            risc0_verifier_contract,
+            program_spec_hash,
+            context_state_hash,
+            image_id,
+        ])?;
+        println!("ABI-Encoded Parameters: {:?}", abi_encoded_params);
+
+        // Concatenate the bytecode and ABI-encoded parameters 
+        let full_bytecode = format!("{}{}", bytecode, abi_encoded_params.trim_start_matches("0x"));
+        println!("Final Contract Bytecode: {:?}", full_bytecode);
+
+        let deploy_output = run_cast_command(&[
+            "send",
+            "--private-key",
+            private_key,
+            "--create",
+            &full_bytecode,
+        ])?;
+
+        Ok(deploy_output)
+    }
+
+    /// -------------------------------------------
+    /// Calls the `verify()` function of the deployed VerifierContract
+    /// -------------------------------------------
+    pub fn call_verify_function(
+        private_key: &str,
+        verifier_contract_address: &str,
+        public_input: &str,
+        seal: &str,
+    ) -> Result<String, Box<dyn Error>> {
+        // Send the transaction using cast send
+        let call_output = run_cast_command(&[
+            "send",
+            "--private-key",
+            private_key,
+            verifier_contract_address,
+            "verify(bytes,bytes)",
+            public_input,
+            seal,
+        ])?;
+
+        Ok(call_output)
+    }
+
 
     /// -------------------------------------------
     /// Extracts the contract address from cast output
@@ -413,26 +489,31 @@ pub mod evm_utils {
     pub async fn get_code(address: &str) -> Result<String, Box<dyn std::error::Error>> {
         run_cast_command(&["code", address])
     }
-
+ use hex::FromHexError;
     /// -------------------------------------------
     /// Retrieves storage value at a given slot for a contract
     /// -------------------------------------------
-    pub async fn get_storage_at(contract: &str, slot: &str) -> Result<BTreeMap<H256, H256>, Box<dyn Error>> {
-        let output = run_cast_command(&["storage", contract, slot])?;
-        println!("Raw output: {:?}", output);
+    pub async fn get_storage_at(contract: &str, slot: &str) -> Result<BTreeMap<H256, H256>, FromHexError> {
+    let output = run_cast_command(&["storage", contract, slot]).map_err(|_| FromHexError::InvalidStringLength)?;
+    println!("Raw output: {:?}", output);
 
-        let output_trimmed = output.trim();
+    let output_trimmed = output.trim();
 
-        if output_trimmed.is_empty() || output_trimmed == "0x0000000000000000000000000000000000000000000000000000000000000000" {
-            return Ok(BTreeMap::new());
-        }
-        let value_h256 = H256::from_slice(&hex::decode(output_trimmed.trim_start_matches("0x"))?);
-
-        let mut storage_map = BTreeMap::new();
-        storage_map.insert(H256::zero(), value_h256); // Use H256::zero() as a fitting key for now 
-
-        Ok(storage_map)
+    // Se l'output è vuoto o è zero, restituisci una mappa vuota
+    if output_trimmed.is_empty() || output_trimmed == "0x0000000000000000000000000000000000000000000000000000000000000000" {
+        return Ok(BTreeMap::new());
     }
+
+    // Decodifica l'output esadecimale e propaga l'errore direttamente come `FromHexError`
+    let decoded_bytes = hex::decode(output_trimmed.trim_start_matches("0x"))?; 
+
+    let value_h256 = H256::from_slice(&decoded_bytes); // Ora è un `&[u8]` valido
+
+    let mut storage_map = BTreeMap::new();
+    storage_map.insert(H256::zero(), value_h256); // Usa H256::zero() come chiave per ora
+
+    Ok(storage_map)
+}
 }
 
 
