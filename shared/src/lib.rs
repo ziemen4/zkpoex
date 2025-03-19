@@ -185,6 +185,7 @@ pub mod evm_utils {
     use std::collections::BTreeMap;
     use std::error::Error;
     use serde_json::from_str;
+    use hex::FromHexError;
     /// -------------------------------------------
     /// Executes a cast command and returns the output as a String
     /// -------------------------------------------
@@ -489,31 +490,31 @@ pub mod evm_utils {
     pub async fn get_code(address: &str) -> Result<String, Box<dyn std::error::Error>> {
         run_cast_command(&["code", address])
     }
- use hex::FromHexError;
+
     /// -------------------------------------------
-    /// Retrieves storage value at a given slot for a contract
+    /// Retrieves the storage value at a given slot for a contract
     /// -------------------------------------------
     pub async fn get_storage_at(contract: &str, slot: &str) -> Result<BTreeMap<H256, H256>, FromHexError> {
-    let output = run_cast_command(&["storage", contract, slot]).map_err(|_| FromHexError::InvalidStringLength)?;
-    println!("Raw output: {:?}", output);
+        let output = run_cast_command(&["storage", contract, slot]).map_err(|_| FromHexError::InvalidStringLength)?;
+        println!("Raw output: {:?}", output);
 
-    let output_trimmed = output.trim();
+        let output_trimmed = output.trim();
 
-    // Se l'output è vuoto o è zero, restituisci una mappa vuota
-    if output_trimmed.is_empty() || output_trimmed == "0x0000000000000000000000000000000000000000000000000000000000000000" {
-        return Ok(BTreeMap::new());
+        // If the output is empty or zero, return an empty map
+        if output_trimmed.is_empty() || output_trimmed == "0x0000000000000000000000000000000000000000000000000000000000000000" {
+            return Ok(BTreeMap::new());
+        }
+
+        // Decode the hexadecimal output
+        let decoded_bytes = hex::decode(output_trimmed.trim_start_matches("0x"))?; 
+
+        let value_h256 = H256::from_slice(&decoded_bytes);
+
+        let mut storage_map = BTreeMap::new();
+        storage_map.insert(H256::zero(), value_h256); // Use H256::zero() as the key for now
+
+        Ok(storage_map)
     }
-
-    // Decodifica l'output esadecimale e propaga l'errore direttamente come `FromHexError`
-    let decoded_bytes = hex::decode(output_trimmed.trim_start_matches("0x"))?; 
-
-    let value_h256 = H256::from_slice(&decoded_bytes); // Ora è un `&[u8]` valido
-
-    let mut storage_map = BTreeMap::new();
-    storage_map.insert(H256::zero(), value_h256); // Usa H256::zero() come chiave per ora
-
-    Ok(storage_map)
-}
 }
 
 
