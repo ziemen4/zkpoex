@@ -2,6 +2,7 @@ compile-contract:
     @echo "============================================================"
     @echo "🚀 Starting compilation..."
     @echo "============================================================"
+    solc-select install 0.8.20 && \
     solc-select use 0.8.20 && \
     for file in contracts/src/examples/*.sol; do \
         solc --abi \
@@ -70,7 +71,10 @@ prove function params conditions contract_bytecode network abi: compile-contract
 
     # Set up the ETH_RPC_URL based on the network and run the cargo command
     sh -c ' \
-      if [ "{{network}}" = "testnet" ]; then \
+      if [ "{{network}}" = "local" ]; then \
+        export ETH_RPC_URL="http://localhost:8545"; \
+        echo "local ETH_RPC_URL: $ETH_RPC_URL"; \
+      elif [ "{{network}}" = "testnet" ]; then \
         export ETH_RPC_URL="https://ethereum-holesky-rpc.publicnode.com"; \
         echo "test ETH_RPC_URL: $ETH_RPC_URL"; \
       elif [ "{{network}}" = "mainnet" ]; then \
@@ -110,7 +114,10 @@ prove-bonsai function params conditions contract_bytecode network abi: compile-c
     
     # Set up the ETH_RPC_URL based on the network and run the cargo command
     sh -c ' \
-      if [ "{{network}}" = "testnet" ]; then \
+      if [ "{{network}}" = "local" ]; then \
+        export ETH_RPC_URL="http://localhost:8545"; \
+        echo "local ETH_RPC_URL: $ETH_RPC_URL"; \
+      elif [ "{{network}}" = "testnet" ]; then \
         export ETH_RPC_URL="https://ethereum-holesky-rpc.publicnode.com"; \
         echo "test ETH_RPC_URL: $ETH_RPC_URL"; \
       elif [ "{{network}}" = "mainnet" ]; then \

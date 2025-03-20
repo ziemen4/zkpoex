@@ -85,10 +85,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let contract_variables = evm_utils::populate_state_variables_from_abi(abi_file)
             .expect("Failed to populate contract variables from ABI");
         
-        // Dynamically get the file.sol from testnet (this needs implementation)
-        // Change fot the file.sol that you want to extract the storage_slots
+        // TODO: Dynamically get the file.sol from testnet (this needs implementation)
+        // TODO: Change fot the file.sol that you want to extract the storage_slots
         let storage_slots = evm_utils::get_storage_slots_for_variables(
-            "contracts/src/examples/TargetContract.sol",
+            "contracts/src/examples/OverUnderFlowVulnerable.sol",
             &contract_variables
         )?;
         

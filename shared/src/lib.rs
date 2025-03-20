@@ -497,7 +497,7 @@ pub mod evm_utils {
     pub async fn get_storage_at(contract: &str, slot: &str) -> Result<BTreeMap<H256, H256>, FromHexError> {
         let output = run_cast_command(&["storage", contract, slot]).map_err(|_| FromHexError::InvalidStringLength)?;
         println!("Raw output: {:?}", output);
-
+        
         let output_trimmed = output.trim();
 
         // If the output is empty or zero, return an empty map
