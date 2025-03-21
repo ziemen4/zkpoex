@@ -74,6 +74,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let contract_bytecode_deployment = fs::read_to_string(contract_bytecode_file).expect("Failed to read contract bytecode file");
     let calldata = utils::generate_function_signature(function_name, &[params]);
 
+    println!("Calldata: {}", calldata);
+
     let private_key = env::var("WALLET_PRIV_KEY")?;
     let output = evm_utils::deploy_contract(&private_key, &contract_bytecode_deployment)?;
     let td_address = evm_utils::extract_contract_address(&output).expect("Failed to extract contract address").to_string().trim_start_matches("0x").to_string();
@@ -96,8 +98,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let var_name = key_var.trim_start_matches("var_");
         let var_name_str = storage_slots.get(var_name)
             .expect("Key not found in storage_slots").to_string();
+        println!("Var name: {}", var_name_str);
         
-        evm_utils::get_storage_at(&td_address, &var_name_str).await?
+        
+        evm_utils::get_storage_at(&td_address, &var_name_str).expect("Failed to get storage")
     } else {
         BTreeMap::new()
     };
@@ -119,6 +123,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         storage: td_storage,
         code: td_code,
     };
+
+    println!("TD STORAGE: {:?}", target_data.storage);
 
     println!("Target data: {:?}", target_data);
 
@@ -164,7 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // is not related to the zkVM, we need to find a path for this
     let transaction_result  = evm_utils::send_transaction_with_calldata(&td_address, &private_key, &calldata).unwrap();
     println!("Transaction result: {:?}", transaction_result);
-    
+
 
     let context_state_json = serde_json::to_string(&context_state).unwrap();
     let program_spec_json = serde_json::to_string(&program_spec).unwrap();

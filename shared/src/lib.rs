@@ -10,7 +10,7 @@ pub mod utils {
     use clap::{Arg, Command};
     use crate::conditions::{FixedCondition,Condition,Operator};
     use std::path::PathBuf;
-    use primitive_types::U256;
+    use primitive_types::{U256,H256};
     use std::str;
 
     /// -------------------------------------------
@@ -114,14 +114,14 @@ pub mod utils {
     /// -------------------------------------------
     /// Hashes a string using the Keccak256 algorithm.
     /// -------------------------------------------
-    pub fn keccak256(input: &str) -> String {
+    pub fn keccak256(input: &str) -> H256 {
         let mut hasher = Keccak::v256();
         let mut output = [0u8; 32];
 
         hasher.update(input.as_bytes());
         hasher.finalize(&mut output);
-
-        hex::encode(output) 
+        
+        H256::from(output)
     }
 
     /// -------------------------------------------
@@ -494,7 +494,7 @@ pub mod evm_utils {
     /// -------------------------------------------
     /// Retrieves the storage value at a given slot for a contract
     /// -------------------------------------------
-    pub async fn get_storage_at(contract: &str, slot: &str) -> Result<BTreeMap<H256, H256>, FromHexError> {
+    pub fn get_storage_at(contract: &str, slot: &str) -> Result<BTreeMap<H256, H256>, FromHexError> {
         let output = run_cast_command(&["storage", contract, slot]).map_err(|_| FromHexError::InvalidStringLength)?;
         println!("Raw output: {:?}", output);
         
@@ -509,9 +509,14 @@ pub mod evm_utils {
         let decoded_bytes = hex::decode(output_trimmed.trim_start_matches("0x"))?; 
 
         let value_h256 = H256::from_slice(&decoded_bytes);
+        let slot_u64: u64 = slot.parse().unwrap_or(0);
+        let slot_hash = H256::from_low_u64_be(slot_u64);
+
+        println!("Slot Hash: {:?}", slot_hash);
+        println!("Value H256: {:?}", value_h256);
 
         let mut storage_map = BTreeMap::new();
-        storage_map.insert(H256::zero(), value_h256); // Use H256::zero() as the key for now
+        storage_map.insert(slot_hash, value_h256); 
 
         Ok(storage_map)
     }
@@ -682,7 +687,6 @@ pub mod input {
     use alloc::vec::Vec;
     use primitive_types::{H256, U256};
     use serde::{Deserialize, Serialize};
-
     /// -------------------------------------------
     /// Represents the data of an Ethereum account
     /// -------------------------------------------

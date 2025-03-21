@@ -1,7 +1,6 @@
 use shared::context;
 use shared::conditions;
 use shared::input::AccountData;
-
 extern crate alloc;
 extern crate core;
 
@@ -153,8 +152,6 @@ fn check_fixed_condition(
     let account_basic = state.basic(account_address);
     println!("Account basic: {:?}", account_basic);
     println!("Value of fixed_cond {:?}", fixed_condition.v,);
-    println!("{}",check_condition_op(&fixed_condition.op, account_basic.nonce, fixed_condition.v));
-    println!("{}",check_condition_op(&fixed_condition.op,account_basic.balance,fixed_condition.v));
     println!("\n\n---------------------------\n\n");
     // If the state key vector has length 2, then we are accessing the account fields directly
     if state_key.len() == 2 {
@@ -162,11 +159,16 @@ fn check_fixed_condition(
             "nonce" => check_condition_op(&fixed_condition.op, account_basic.nonce, fixed_condition.v),
             "balance" => check_condition_op(&fixed_condition.op, account_basic.balance, fixed_condition.v),
 
-            //if the input of is something like "var_<nam variable> == <number>" 
-            // example: just prove "withdraw(uint256)" "1001" "var_balance == 115792089237316195423570985008687907853269984665640564039457584007913129639935" "./bytecode/OverUnderFlowVulnerable.bin" "testnet" "./bytecode/OverUnderFlowVulnerable.abi"
+            //if the input of is something like "var_<nam variable> != <number>" 
+            // example: just prove "withdraw(uint256)" "1001" "var_balance != 115792089237316195423570985008687907853269984665640564039457584007913129639935" "./bytecode/OverUnderFlowVulnerable.bin" "testnet" "./bytecode/OverUnderFlowVulnerable.abi"
             _ if state_key[1].starts_with("var_") => {
-                let _ = state_key[1].trim_start_matches("var_");
-                check_condition_op(&fixed_condition.op, account_basic.nonce, fixed_condition.v)
+        
+                // TODO: IMPORTANT -> Understand how to get dinaically the storage slot from var_name. I used the corresponding storage slot for the variable "var_balance" in the OverUnderFlowVulnerable.sol contract (zero slot)
+                // We can't run functions like `evm_utils::get_storage_slots_for_variables` in the evm-runner crate  
+                let storage = state.storage(account_address, H256::zero());
+                let storage_value_int = U256::from_big_endian(&storage[..]);
+                println!("Storage value: {:?}", storage_value_int);
+                check_condition_op(&fixed_condition.op, storage_value_int, fixed_condition.v)
             }
             _ => panic!("Invalid state key: {}", state_key[1]),
         }
@@ -283,7 +285,6 @@ fn prove_final_state(
     for condition in method_conditions {
         match condition {
             Condition::Fixed(condition) => {
-                println!("Checking fixed condition: {:?}", condition);
                 let result = check_fixed_condition(&post_state, &condition);
                 if !result {
                     println!("Fixed condition failed: {:?}", condition);
@@ -393,7 +394,7 @@ pub fn run_evm(
 
     // 6.3 The address of the prover
     // TODO: For now we use the caller, but we could use a different address sent as a parameter
-    //		 specially when supporting contract callers
+    // specially when supporting contract callers
     let prover_address = H160::from_str(&caller_data.address).unwrap();
     outputs.push(prover_address.to_string());
 
@@ -406,8 +407,8 @@ mod tests {
     use conditions::compute_mapping_storage_key;
     use context::{build_context_account_data, ContextAccountDataType};
 
-    pub const TARGET_CONTRACT_BYTECODE: &str =
-        include_str!("../../bytecode/TargetContract.bin-runtime");
+    pub const TARGET_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/TargetContract.bin-runtime");
+    pub const OUFLOW_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/OverUnderFlowVulnerable.bin-runtime");
 
     #[test]
     fn evm_find_new_exploit_balance_works() {
@@ -571,6 +572,80 @@ mod tests {
 
         let hashed_context_state = context::hash_context_state(&context_state);
         assert_eq!(result[2], hex::encode(hashed_context_state));
+
+        let prover_address = H160::from_str("E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c").unwrap();
+        assert_eq!(result[3], prover_address.to_string());
+    }
+
+    #[test]
+    fn evm_find_new_exploit_storage_works() {
+        let calldata = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000003e9"; // withdraw(1001) -> 3e9 at the end does not work. With withdraw(1) yes, seems like balance is always 0
+        let blockchain_settings = r#"
+        {
+			"gas_price": "0",
+			"origin": "0x0000000000000000000000000000000000000000",
+			"block_hashes": "[]",
+			"block_number": "0",
+			"block_coinbase": "0x0000000000000000000000000000000000000000",
+			"block_timestamp": "0",
+			"block_difficulty": "0",
+			"block_gas_limit": "0",
+			"chain_id": "1",
+			"block_base_fee_per_gas": "0"
+		}
+    	"#;
+
+        let program_spec = vec![
+            // Program specification is a list of (condition, method) pairs
+            // Where method is defined by its method id
+            // and condition is a list of conditions that must be satisfied for the method to be executed
+            (
+                Condition::Fixed(FixedCondition {
+                    k_s: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97.var_balance".to_string(),
+                    op: Operator::Neq,
+                    v: U256::from_dec_str("115792089237316195423570985008687907853269984665640564039457584007913129639935").unwrap(), //maximum representable value of uint256
+                }),
+                "2e1a7d4d".to_string(),
+            ),
+        ];
+        
+        let mut storage_map = BTreeMap::new();
+        storage_map.insert(
+            H256::from_slice(&hex::decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap()),
+            H256::from_slice(&hex::decode("00000000000000000000000000000000000000000000000000000000000003e8").unwrap()),
+        );
+
+        let context_state = vec![
+            AccountData {
+                address: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97".to_string(),
+                nonce: U256::one(),
+                balance: U256::from_dec_str("0").unwrap(),
+                storage: storage_map,
+                code: hex::decode(OUFLOW_CONTRACT_BYTECODE).unwrap(),
+            },
+			AccountData {
+                address: "E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c".to_string(),
+                nonce: U256::one(),
+                balance: U256::from_dec_str("10000000000000000000").unwrap(),
+                storage: BTreeMap::new(),
+                code: vec![],
+            },
+        ];
+
+        let result = run_evm(
+            calldata,
+            context_state.clone(),
+            program_spec.clone(),
+            blockchain_settings,
+        );
+        println!("Result: {:?}", result);
+        assert_eq!(result[0], "true"); // exploit should be found
+
+        let hashed_program_spec = conditions::hash_program_spec(&program_spec);
+        assert_eq!(result[1], hex::encode(hashed_program_spec));
+
+        let hashed_context_data = context::hash_context_state(&context_state);
+        assert_eq!(result[2], hex::encode(hashed_context_data));
 
         let prover_address = H160::from_str("E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c").unwrap();
         assert_eq!(result[3], prover_address.to_string());
