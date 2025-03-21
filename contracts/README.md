@@ -42,7 +42,7 @@ The deployment suite consists of three main components:
 contracts/
 ├── src/                     # Solidity contract source files
 │   ├── VerifierContract.sol
-│   └── TargetContract.sol
+│   └── BasicVulnerable.sol
 ├── bytecode/                # Compiled contract bytecode is stored here
 ├── scripts/
 │   ├── Deploy.s.sol         # Foundry deployment script (Solidity)

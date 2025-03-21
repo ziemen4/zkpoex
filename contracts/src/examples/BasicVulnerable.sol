@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { IERC20 } from "../../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
-contract TargetContract {
+contract BasicVulnerable {
     address public constant CONTEXT_ERC20_CONTRACT_ADDRESS = address(0xE4C2000000000000000000000000000000000000);
 
     // Function to exploit the contract

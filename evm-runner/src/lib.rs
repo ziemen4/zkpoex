@@ -1,3 +1,4 @@
+use evm::backend::Basic;
 use shared::context;
 use shared::conditions;
 use shared::input::AccountData;
@@ -17,7 +18,7 @@ use evm::{
 use hex::encode;
 use hpke::kem::X25519HkdfSha256;
 use hpke::{Kem, Serializable};
-use primitive_types::{H160, H256, U256};
+use primitive_types::{H160, H256, U256, U512};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::Deserialize;
@@ -36,6 +37,24 @@ pub struct DeserializeMemoryVicinity {
     pub block_gas_limit: String,
     pub block_base_fee_per_gas: String,
 }
+
+// Address `0x7A46E70000000000000000000000000000000000` is reserved for the `Target` contract.
+const TARGET_ADDRESS: &str = "7A46E70000000000000000000000000000000000";
+// Address `0xCA11E40000000000000000000000000000000000` is reserved for the `Caller`
+const CALLER_ADDRESS: &str = "CA11E40000000000000000000000000000000000";
+/*
+Arbitrary contracts (ranging through 000 to fff, in total 4096 addresses) are reserved for the prover 
+to deploy arbitrary contracts.
+From `0x1000000000000000000000000000000000000000` to `0x1000000000000000000000000000000000000fff`:
+*/
+// Instead of defining each arbitrary address, just provide the gap (they are sequential).
+const RESERVED_ARBITRARY_ADDRESSES: (&str,  &str) = (
+    "1000000000000000000000000000000000000000",
+    "1000000000000000000000000000000000000fff"
+);
+
+// Address `0xE4C2000000000000000000000000000000000000` is reserved for the `ContextTemplateERC20` contract.
+const RESERVED_TEMPLATE_ADDRESSES: [&str; 1] = ["E4C2000000000000000000000000000000000000"];
 
 // This function generates a new keypair (private key and public key) for the chosen KEM.
 pub fn generate_keypair(seed: &[u8; 32]) -> (String, String) {
@@ -66,9 +85,61 @@ fn check_condition_op<T: PartialOrd + std::fmt::Debug>(operator: &Operator, firs
     }
 }
 
+fn get_storage_value(
+    state: &MemoryStackState<MemoryBackend>,
+    state_key: Vec<&str>,
+) -> U256 {
+    // We expect a format like: <account_address>.storage.<storage_key>
+    let address = H160::from_str(state_key[0]).unwrap();
+    if state_key[1] != "storage" {
+        panic!(
+            "Expected 'storage' keyword in state key, got: {}",
+            state_key[1]
+        );
+    }
+
+    // Parse the third part as the storage key (which should be a 32-byte hex string)
+    let storage_key =
+        H256::from_str(state_key[2]).expect("Invalid storage key hex provided in state key");
+
+    // Retrieve the storage value from the state.
+    // (Assume your MemoryStackState has a method similar to `storage` that takes an account and a key)
+    let storage_value = state.storage(address, storage_key);
+
+    // TODO: See how to handle properly taking into account that we may want to compare non-numeric things
+    let storage_value_as_u256 = U256::from_big_endian(&storage_value[..]);
+
+    storage_value_as_u256    
+}
+
+fn get_state_value(
+    state: &MemoryStackState<MemoryBackend>,
+    state_key: Vec<&str>,
+    account: &Basic,
+) -> U256 {
+    // If the state key vector has length 2, then we are accessing the account fields directly
+    if state_key.len() == 2 {
+        match state_key[1] {
+            "nonce" => account.nonce,
+            "balance" => account.balance,
+            _ => {
+                panic!("Invalid state key: {}", state_key[1]);
+            }
+        }
+    } else if state_key.len() == 3 {
+        // If the state key vector has length 3, then we expect a format like: <account_address>.storage.<storage_key>
+        get_storage_value(
+            state,
+            state_key,
+        )
+    } else {
+        panic!("Invalid state key format");
+    }
+}
+
 fn check_relative_condition(
     // TODO: See if its possible to use the MemoryStackState, for now use the BTreeMap instead
-    pre_state: &BTreeMap<H160, MemoryAccount>,
+    pre_state: &MemoryStackState<MemoryBackend>,
     post_state: &MemoryStackState<MemoryBackend>,
     relative_condition: &RelativeCondition,
 ) -> bool {
@@ -85,51 +156,34 @@ fn check_relative_condition(
     let pre_account_address = H160::from_str(pre_state_key[0]).unwrap();
     let post_account_address = H160::from_str(post_state_key[0]).unwrap();
 
-    // Check that the addresses are the same
-    assert!(pre_account_address == post_account_address);
-
     // If account does not exist, panic
-    if !post_state.exists(pre_account_address) {
+    if !post_state.exists(post_account_address) {
+        panic!("Account does not exist: {}", post_account_address);
+    }
+
+    if !pre_state.exists(pre_account_address) {
         panic!("Account does not exist: {}", pre_account_address);
     }
 
     // Get the account from the state
-    let pre_account_basic = pre_state.get(&pre_account_address).unwrap();
+    let pre_account_basic = pre_state.basic(pre_account_address);
     let post_account_basic = post_state.basic(post_account_address);
 
     println!("PRE ACCOUNT BASIC BALANCE {:?}", pre_account_basic);
 	println!("POST ACCOUNT BASIC BALANCE {:?}", post_account_basic);
 
-    // If the state key vector has length 2, then we are accessing the account fields directly
-    if pre_state_key.len() == 2 {
-        match pre_state_key[1] {
-            "nonce" => check_condition_op(
-                &relative_condition.op,
-                pre_account_basic.nonce,
-                post_account_basic.nonce,
-            ),
-            "balance" => check_condition_op(
-                &relative_condition.op,
-                pre_account_basic.balance,
-                post_account_basic.balance,
-            ),
-            "var" => check_condition_op(
-                &relative_condition.op,
-                pre_account_basic.balance,
-                post_account_basic.balance,
-            ),
-            _ => {
-                panic!("Invalid state key: {}", pre_state_key[1]);
-            }
-        }
-    } else {
-        // TODO: Figure out how to compare storage values correctly (type stuff)
-        // If the state key vector has length 3, then we are accessing the storage fields
-        //let storage_key = H256::from_str(state_key[1]).unwrap();
-        //let storage_value = state.storage.(account_address, storage_key);
-        //assert!(check_condition_op(fixed_condition.op, storage_value, fixed_condition.v));
-        false
-    }
+    let pre_state_val = get_state_value(
+        pre_state,
+        pre_state_key,
+        &pre_account_basic,
+    );
+    let post_state_val = get_state_value(
+        post_state,
+        post_state_key,
+        &post_account_basic,
+    );
+
+    check_condition_op(&relative_condition.op, pre_state_val, post_state_val)
 }
 
 fn check_fixed_condition(
@@ -153,56 +207,18 @@ fn check_fixed_condition(
     println!("Account basic: {:?}", account_basic);
     println!("Value of fixed_cond {:?}", fixed_condition.v,);
     println!("\n\n---------------------------\n\n");
-    // If the state key vector has length 2, then we are accessing the account fields directly
-    if state_key.len() == 2 {
-        match state_key[1] {
-            "nonce" => check_condition_op(&fixed_condition.op, account_basic.nonce, fixed_condition.v),
-            "balance" => check_condition_op(&fixed_condition.op, account_basic.balance, fixed_condition.v),
 
-            //if the input of is something like "var_<nam variable> != <number>" 
-            // example: just prove "withdraw(uint256)" "1001" "var_balance != 115792089237316195423570985008687907853269984665640564039457584007913129639935" "./bytecode/OverUnderFlowVulnerable.bin" "testnet" "./bytecode/OverUnderFlowVulnerable.abi"
-            _ if state_key[1].starts_with("var_") => {
-        
-                // TODO: IMPORTANT -> Understand how to get dinaically the storage slot from var_name. I used the corresponding storage slot for the variable "var_balance" in the OverUnderFlowVulnerable.sol contract (zero slot)
-                // We can't run functions like `evm_utils::get_storage_slots_for_variables` in the evm-runner crate  
-                let storage = state.storage(account_address, H256::zero());
-                let storage_value_int = U256::from_big_endian(&storage[..]);
-                println!("Storage value: {:?}", storage_value_int);
-                check_condition_op(&fixed_condition.op, storage_value_int, fixed_condition.v)
-            }
-            _ => panic!("Invalid state key: {}", state_key[1]),
-        }
+    let state_value = get_state_value(
+        state,
+        state_key,
+        &account_basic,
+    );
 
-        
-    } else if state_key.len() == 3 {
-        // We expect a format like: <account_address>.storage.<storage_key>
-        if state_key[1] != "storage" {
-            panic!(
-                "Expected 'storage' keyword in state key, got: {}",
-                state_key[1]
-            );
-        }
-
-        // Parse the third part as the storage key (which should be a 32-byte hex string)
-        let storage_key =
-            H256::from_str(state_key[2]).expect("Invalid storage key hex provided in state key");
-
-        // Retrieve the storage value from the state.
-        // (Assume your MemoryStackState has a method similar to `storage` that takes an account and a key)
-        let storage_value = state.storage(account_address, storage_key);
-
-        // TODO: See how to handle properly taking into account that we may want to compare non-numeric things
-        let storage_value_as_u256 = U256::from_big_endian(&storage_value[..]);
-
-        // Compare the storage value with the expected value using your condition operator.
-        check_condition_op(
-            &fixed_condition.op,
-            storage_value_as_u256,
-            fixed_condition.v,
-        )
-    } else {
-        panic!("Invalid state key format");
-    }
+    check_condition_op(
+        &fixed_condition.op,
+        state_value,
+        fixed_condition.v,
+    )
 }
 
 fn from_deserialized_vicinity(deserialized_vicinity: DeserializeMemoryVicinity) -> MemoryVicinity {
@@ -275,7 +291,7 @@ fn verify_pre_state(
 }
 
 fn prove_final_state(
-    pre_state: &BTreeMap<H160, MemoryAccount>,
+    pre_state: &MemoryStackState<MemoryBackend>,
     post_state: &MemoryStackState<MemoryBackend>,
     method_conditions: &Vec<Condition>,
 ) -> bool {
@@ -307,6 +323,20 @@ fn prove_final_state(
     return exit_succeed;
 }
 
+fn build_memory_stack_state<'a>(
+    context_state: &'a Vec<AccountData>,
+    config: &'a Config,
+    backend: &'a mut MemoryBackend<'a>,
+) -> MemoryStackState<'a, 'a, MemoryBackend<'a>> {
+    let mut global_state: BTreeMap<H160, MemoryAccount> = BTreeMap::new();
+    build_global_state(&mut global_state, &context_state);
+
+    let metadata = StackSubstateMetadata::new(u64::MAX, &config);
+    let state = MemoryStackState::new(metadata, backend);
+
+    state
+}
+
 pub fn run_evm(
     calldata: &str,
     context_state: Vec<AccountData>,
@@ -322,21 +352,49 @@ pub fn run_evm(
     let vicinity: MemoryVicinity = from_deserialized_vicinity(deserialize_vicinity);
     println!("Vicinity: {:?}", vicinity);
 
-    // 0.2 Obtain the caller, target and context data
+    // 0.1 Obtain the caller, target and context data
     let target_data = context_state[0].clone();
     let caller_data = context_state[1].clone();
 
-    // 0.2 Sanity checks (TODO: Think of more sanity checks if needed)
-    assert!(caller_data.address != target_data.address);
+    // 0.2 Pre-checks
+    assert!(caller_data.address == CALLER_ADDRESS);
+    assert!(target_data.address == TARGET_ADDRESS);
+    
+    // TODO: Alternatively, if this is too costly, we could allow the program spec
+    //       to specify "any()" as the address, and have the prover just show that some address
+    //       satisfies the condition.
+    let lower_bound_reserved_address: U256 = U256::from_str(&RESERVED_ARBITRARY_ADDRESSES.0[2..]).unwrap();
+    let upper_bound_reserved_address: U256 = U256::from_str(&RESERVED_ARBITRARY_ADDRESSES.1[2..]).unwrap();
+
+    for account_data in context_state.clone() {
+        let account_address = H160::from_str(&account_data.address).unwrap();
+        let account_address_int = U256::from_big_endian(&account_address[..]);
+        if account_address_int >= lower_bound_reserved_address || account_address_int <= upper_bound_reserved_address {
+            continue;
+        }
+        assert!(!RESERVED_TEMPLATE_ADDRESSES.contains(&account_data.address.as_str()));
+    }
 
     // 1. Setup global state from caller_data and target_data
     let mut global_state: BTreeMap<H160, MemoryAccount> = BTreeMap::new();
     build_global_state(&mut global_state, &context_state);
-    let pre_state_tree = global_state.clone();
-
     let mut backend = MemoryBackend::new(&vicinity, global_state);
-    let metadata = StackSubstateMetadata::new(u64::MAX, &config);
-    let pre_state = MemoryStackState::new(metadata, &mut backend);
+    let pre_state = build_memory_stack_state(
+        &context_state,
+        &config,
+        &mut backend,
+    );
+
+    // 1.1 Create a snapshot of the pre state for further use
+    // TOOD: See if there is a better way to avoid cloning the global state from scratch
+    let mut snapshot_global_state: BTreeMap<H160, MemoryAccount> = BTreeMap::new();
+    build_global_state(&mut snapshot_global_state, &context_state);
+    let mut snapshot_backend = MemoryBackend::new(&vicinity, snapshot_global_state);
+    let pre_state_snapshot = build_memory_stack_state(
+        &context_state,
+        &config,
+        &mut snapshot_backend,
+    );
 
     // 2. Prove that the initial state is valid wrt the program specification
     // 2.1 Verify that the program specification is valid
@@ -370,7 +428,7 @@ pub fn run_evm(
     println!("Method conditions: {:?}", method_conditions);
 
     // 4.1 Depending on the returning boolean value, we can determine if an exploit was found
-    let exploit_found = prove_final_state(&pre_state_tree, &post_state, &method_conditions);
+    let exploit_found = prove_final_state(&pre_state_snapshot, &post_state, &method_conditions);
 
     println!("Exploit found: {:?}", exploit_found);
 
@@ -406,12 +464,13 @@ mod tests {
     use super::*;
     use conditions::compute_mapping_storage_key;
     use context::{build_context_account_data, ContextAccountDataType};
+    use shared::conditions::compute_storage_key;
 
-    pub const TARGET_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/TargetContract.bin-runtime");
+    pub const BASIC_VULNERABLE_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/BasicVulnerable.bin-runtime");
     pub const OUFLOW_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/OverUnderFlowVulnerable.bin-runtime");
 
     #[test]
-    fn evm_find_new_exploit_balance_works() {
+    fn evm_find_new_exploit_target_contract_works() {
         /*
         (**Finding a new exploit**) Calling the method ```exploit``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
@@ -437,7 +496,7 @@ mod tests {
             // and condition is a list of conditions that must be satisfied for the method to be executed
             (
                 Condition::Fixed(FixedCondition {
-                    k_s: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97.balance".to_string(),
+                    k_s: "7A46E70000000000000000000000000000000000.balance".to_string(),
                     op: Operator::Gt,
                     v: U256::from_dec_str("0").unwrap(),
                 }),
@@ -446,14 +505,14 @@ mod tests {
         ];
         let context_state = vec![
             AccountData {
-                address: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97".to_string(),
+                address: "7A46E70000000000000000000000000000000000".to_string(),
                 nonce: U256::one(),
                 balance: U256::from_dec_str("1000000000000000000").unwrap(),
                 storage: BTreeMap::new(),
-                code: hex::decode(TARGET_CONTRACT_BYTECODE).unwrap(),
+                code: hex::decode(BASIC_VULNERABLE_CONTRACT_BYTECODE).unwrap(),
             },
 			AccountData {
-                address: "E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c".to_string(),
+                address: "CA11E40000000000000000000000000000000000".to_string(),
                 nonce: U256::one(),
                 balance: U256::from_dec_str("10000000000000000000").unwrap(),
                 storage: BTreeMap::new(),
@@ -476,13 +535,13 @@ mod tests {
         let hashed_context_data = context::hash_context_state(&context_state);
         assert_eq!(result[2], hex::encode(hashed_context_data));
 
-        let prover_address = H160::from_str("E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c").unwrap();
+        let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
         assert_eq!(result[3], prover_address.to_string());
     }
 
     
     #[test]
-    fn evm_find_new_exploit_erc20_works() {
+    fn evm_find_new_exploit_target_contract_erc20_works() {
         /*
         (**Finding a new exploit**) Calling the method ```exploit_erc20``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
@@ -504,7 +563,7 @@ mod tests {
 
         // First, compute the storage key for the balances mapping at the target address
         let computed_storage_key = compute_mapping_storage_key(
-            H160::from_str("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap(), // mapping key (address)
+            H160::from_str("0x7A46E70000000000000000000000000000000000").unwrap(), // mapping key (address)
             U256::from(0), // the base slot for the mapping (See ContextTemplateERC20-storageLayout.json)
         );
 
@@ -542,14 +601,14 @@ mod tests {
 
         let context_state = vec![
             AccountData {
-                address: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97".to_string(),
+                address: "7A46E70000000000000000000000000000000000".to_string(),
                 nonce: U256::one(),
                 balance: U256::from_dec_str("0").unwrap(),
                 storage: BTreeMap::new(),
-                code: hex::decode(TARGET_CONTRACT_BYTECODE).unwrap(),
+                code: hex::decode(BASIC_VULNERABLE_CONTRACT_BYTECODE).unwrap(),
             },
 			AccountData {
-                address: "E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c".to_string(),
+                address: "CA11E40000000000000000000000000000000000".to_string(),
                 nonce: U256::one(),
                 balance: U256::from_dec_str("10000000000000000000").unwrap(),
                 storage: BTreeMap::new(),
@@ -573,12 +632,12 @@ mod tests {
         let hashed_context_state = context::hash_context_state(&context_state);
         assert_eq!(result[2], hex::encode(hashed_context_state));
 
-        let prover_address = H160::from_str("E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c").unwrap();
+        let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
         assert_eq!(result[3], prover_address.to_string());
     }
 
     #[test]
-    fn evm_find_new_exploit_storage_works() {
+    fn evm_find_new_exploit_over_under_flow_storage_works() {
         let calldata = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000003e9"; // withdraw(1001) -> 3e9 at the end does not work. With withdraw(1) yes, seems like balance is always 0
         let blockchain_settings = r#"
         {
@@ -595,13 +654,27 @@ mod tests {
 		}
     	"#;
 
+        // First, compute the storage key for the balances mapping at the target address
+        let computed_storage_key = compute_storage_key(0); // the "balance" variable is at slot 0
+
+        // Initialize the init storage such that the target address has a balance of 1000
+        let mut over_underflow_init_storage: BTreeMap<H256, H256> = BTreeMap::new();
+        let amount: H256 = H256::from_low_u64_be(1000);
+        over_underflow_init_storage.insert(computed_storage_key, amount);
+
+        let state_path = format!(
+            "{}.storage.{}",
+            "7A46E70000000000000000000000000000000000",
+            hex::encode(computed_storage_key)
+        );
+
         let program_spec = vec![
             // Program specification is a list of (condition, method) pairs
             // Where method is defined by its method id
             // and condition is a list of conditions that must be satisfied for the method to be executed
             (
                 Condition::Fixed(FixedCondition {
-                    k_s: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97.var_balance".to_string(),
+                    k_s: state_path,
                     op: Operator::Neq,
                     v: U256::from_dec_str("115792089237316195423570985008687907853269984665640564039457584007913129639935").unwrap(), //maximum representable value of uint256
                 }),
@@ -609,22 +682,16 @@ mod tests {
             ),
         ];
         
-        let mut storage_map = BTreeMap::new();
-        storage_map.insert(
-            H256::from_slice(&hex::decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap()),
-            H256::from_slice(&hex::decode("00000000000000000000000000000000000000000000000000000000000003e8").unwrap()),
-        );
-
         let context_state = vec![
             AccountData {
-                address: "4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97".to_string(),
+                address: "7A46E70000000000000000000000000000000000".to_string(),
                 nonce: U256::one(),
                 balance: U256::from_dec_str("0").unwrap(),
-                storage: storage_map,
+                storage: over_underflow_init_storage,
                 code: hex::decode(OUFLOW_CONTRACT_BYTECODE).unwrap(),
             },
 			AccountData {
-                address: "E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c".to_string(),
+                address: "CA11E40000000000000000000000000000000000".to_string(),
                 nonce: U256::one(),
                 balance: U256::from_dec_str("10000000000000000000").unwrap(),
                 storage: BTreeMap::new(),
@@ -647,7 +714,7 @@ mod tests {
         let hashed_context_data = context::hash_context_state(&context_state);
         assert_eq!(result[2], hex::encode(hashed_context_data));
 
-        let prover_address = H160::from_str("E94f1fa4F27D9d288FFeA234bB62E1fBC086CA0c").unwrap();
+        let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
         assert_eq!(result[3], prover_address.to_string());
     }
 }

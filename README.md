@@ -64,7 +64,7 @@ just compile-contract
 ```
 
 This command will:
-- Compile `TargetContract.sol` and other contracts. The output is stored in the `bytecode` directory.
+- Compile `BasicVulnerable.sol` and other contracts. The output is stored in the `bytecode` directory.
 
 ### Running Tests for the EVM Runner
 
@@ -83,6 +83,12 @@ just prove
 ```
 
 This command sets the `RUST_BACKTRACE=full` environment variable and runs the `host` package in release mode.
+
+Alternatively, if you have a bonsai key you can use
+
+```sh
+just prove-bonsai
+```
 
 **Important**: Beware since the prover has very high requirements
 

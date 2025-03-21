@@ -677,6 +677,13 @@ pub mod conditions {
         let result = hasher.finalize();
         H256::from_slice(&result)
     }
+
+    /// -------------------------------------------
+    /// Computes the storage key for a variable in a smart contract
+    /// -------------------------------------------
+    pub fn compute_storage_key(slot: u64) -> H256 {
+        H256::from_low_u64_be(slot)
+    }
 }
 
 pub mod input {

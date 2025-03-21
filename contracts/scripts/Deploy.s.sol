@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import "forge-std/Script.sol";
 import "../src/VerifierContract.sol";
-import "../src/TargetContract.sol";
+import "../src/BasicVulnerable.sol";
 
 contract DeployScript is Script {
     function run() external {
@@ -23,13 +23,13 @@ contract DeployScript is Script {
             contextStateHash
         );
 
-        // Optionally deploy the TargetContract.
-        TargetContract target = new TargetContract();
+        // Optionally deploy the BasicVulnerable.
+        BasicVulnerable target = new BasicVulnerable();
 
         vm.stopBroadcast();
 
         // Log the deployed addresses.
         console.log("VerifierContract deployed at:", address(verifier));
-        console.log("TargetContract deployed at:", address(target));
+        console.log("BasicVulnerable deployed at:", address(target));
     }
 }
