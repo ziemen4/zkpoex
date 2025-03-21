@@ -373,6 +373,7 @@ pub fn run_evm(
             continue;
         }
         assert!(!RESERVED_TEMPLATE_ADDRESSES.contains(&account_data.address.as_str()));
+        // TODO: For each reserved template address, assert that the correct bytecode is present
     }
 
     // 1. Setup global state from caller_data and target_data
