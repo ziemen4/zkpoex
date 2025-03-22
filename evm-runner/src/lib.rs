@@ -1,5 +1,6 @@
 use evm::backend::Basic;
 use shared::conditions::ArithmeticOperator;
+use shared::conditions::MethodSpec;
 use shared::context;
 use shared::conditions;
 use shared::input::AccountData;
@@ -171,7 +172,7 @@ fn check_relative_condition(
         }
         None => post_state_value,
     };
-    
+
     check_condition_op(&relative_condition.op, pre_state_value, second_val)
 }
 
@@ -228,32 +229,37 @@ fn build_global_state(
     }
 }
 
-fn filter_program_spec(program_spec: &Vec<(Condition, String)>, method_id: &str) -> Vec<Condition> {
+fn filter_program_spec(program_spec: &Vec<MethodSpec>, method_id: &str) -> Vec<Condition> {
+    // Obtain the method spec for the given method_id and return its conditions
     program_spec
         .iter()
-        .filter_map(|(condition, method)| {
-            if method[..] == method_id[..] {
-                Some(condition.clone())
+        .filter_map(|method_spec| {
+            if method_spec.method_id[..] == method_id[..] {
+                Some(method_spec.conditions.clone())
             } else {
                 None
             }
         })
+        .flatten()
         .collect()
 }
 
 fn verify_pre_state(
     state: &MemoryStackState<MemoryBackend>,
-    program_spec: &Vec<(Condition, String)>,
+    program_spec: &Vec<MethodSpec>
 ) {
-    for (condition, _) in program_spec {
-        // First, check that the fixed conditions are satisfied
-        match condition {
-            Condition::Fixed(condition) => {
-                let result = check_fixed_condition(&state, &condition);
-                assert!(result == true);
-            }
-            Condition::Relative(_) => {
-                // Continue iterating, this doesnt need to be checked
+    for method_spec in program_spec {
+        let conditions = &method_spec.conditions;
+        for condition in conditions {
+            // First, check that the fixed conditions are satisfied
+            match condition {
+                Condition::Fixed(condition) => {
+                    let result = check_fixed_condition(&state, &condition);
+                    assert!(result == true);
+                }
+                Condition::Relative(_) => {
+                    // Continue iterating, this doesnt need to be checked
+                }
             }
         }
     }
@@ -309,7 +315,7 @@ fn build_memory_stack_state<'a>(
 pub fn run_evm(
     calldata: &str,
     context_state: Vec<AccountData>,
-    program_spec: Vec<(Condition, String)>,
+    program_spec: Vec<MethodSpec>,
     blockchain_settings: &str
 ) -> Vec<String> {
     // 0. Preliminaries
@@ -434,7 +440,7 @@ mod tests {
     use super::*;
     use conditions::compute_mapping_storage_key;
     use context::{build_context_account_data, ContextAccountDataType};
-    use shared::conditions::compute_storage_key;
+    use shared::conditions::{compute_storage_key, MethodArgument, MethodSpec};
 
     pub const BASIC_VULNERABLE_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/BasicVulnerable.bin-runtime");
     pub const OUFLOW_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/OverUnderFlowVulnerable.bin-runtime");
@@ -460,18 +466,27 @@ mod tests {
 		}
     	"#;
 
-        let program_spec = vec![
-            // Program specification is a list of (condition, method) pairs
-            // Where method is defined by its method id
-            // and condition is a list of conditions that must be satisfied for the method to be executed
-            (
-                Condition::Fixed(FixedCondition {
-                    k_s: "7A46E70000000000000000000000000000000000.balance".to_string(),
-                    op: Operator::Gt,
-                    v: U256::from_dec_str("0").unwrap(),
-                }),
-                "16112c6c".to_string(),
-            ),
+        let program_spec: Vec<MethodSpec> = vec![
+            // Program specification is a list of method specifications
+            // Where a method is defined by its method id
+            // Conditions is a list of conditions that must be satisfied for the method to be executed
+            // Arguments are the arguments that the method takes
+            MethodSpec {
+                method_id: "16112c6c".to_string(),
+                conditions: vec![
+                    Condition::Fixed(FixedCondition {
+                        k_s: "7A46E70000000000000000000000000000000000.balance".to_string(),
+                        op: Operator::Gt,
+                        v: U256::from_dec_str("0").unwrap(),
+                    }),
+                ],
+                arguments: vec![
+                    MethodArgument {
+                        argument_type: "bool".to_string(),
+                        argument_name: "_exploit".to_string(),
+                    },
+                ]
+            }
         ];
         let context_state = vec![
             AccountData {
@@ -553,20 +568,29 @@ mod tests {
         );
 
         let program_spec = vec![
-            // Program specification is a list of (condition, method) pairs
-            // Where method is defined by its method id
-            // and condition is a list of conditions that must be satisfied for the method to be executed
-            (
-                Condition::Fixed(
-                    // TODO: Fix this, see https://chatgpt.com/share/67b111b2-313c-800e-9131-e08bc93175bb
-                    FixedCondition {
-                        k_s: state_path,
-                        op: Operator::Gt,
-                        v: U256::from_dec_str("0").unwrap(),
-                    },
-                ),
-                "d92dbd19".to_string(),
-            ),
+            // Program specification is a list of method specifications
+            // Where a method is defined by its method id
+            // Conditions is a list of conditions that must be satisfied for the method to be executed
+            // Arguments are the arguments that the method takes
+            MethodSpec {
+                method_id: "d92dbd19".to_string(),
+                conditions: vec![
+                    Condition::Fixed(
+                        // TODO: Fix this, see https://chatgpt.com/share/67b111b2-313c-800e-9131-e08bc93175bb
+                        FixedCondition {
+                            k_s: state_path,
+                            op: Operator::Gt,
+                            v: U256::from_dec_str("0").unwrap(),
+                        },
+                    ),
+                ],
+                arguments: vec![
+                    MethodArgument {
+                        argument_type: "bool".to_string(),
+                        argument_name: "_exploit".to_string(),
+                    }
+                ]
+            }
         ];
 
         let context_state = vec![
@@ -639,17 +663,26 @@ mod tests {
         );
 
         let program_spec = vec![
-            // Program specification is a list of (condition, method) pairs
-            // Where method is defined by its method id
-            // and condition is a list of conditions that must be satisfied for the method to be executed
-            (
-                Condition::Fixed(FixedCondition {
-                    k_s: state_path,
-                    op: Operator::Neq,
-                    v: U256::from_dec_str("115792089237316195423570985008687907853269984665640564039457584007913129639935").unwrap(), //maximum representable value of uint256
-                }),
-                "2e1a7d4d".to_string(),
-            ),
+            // Program specification is a list of method specifications
+            // Where a method is defined by its method id
+            // Conditions is a list of conditions that must be satisfied for the method to be executed
+            // Arguments are the arguments that the method takes
+            MethodSpec {
+                method_id: "2e1a7d4d".to_string(),
+                conditions: vec![
+                    Condition::Fixed(FixedCondition {
+                        k_s: state_path,
+                        op: Operator::Neq,
+                        v: U256::from_dec_str("115792089237316195423570985008687907853269984665640564039457584007913129639935").unwrap(), //maximum representable value of uint256
+                    }),
+                ],
+                arguments: vec![
+                    MethodArgument {
+                        argument_type: "uint256".to_string(),
+                        argument_name: "amount".to_string(),
+                    }
+                ]
+            }
         ];
         
         let context_state = vec![

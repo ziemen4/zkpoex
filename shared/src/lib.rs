@@ -623,17 +623,38 @@ pub mod conditions {
     }
 
     /// -------------------------------------------
+    /// Represents a method specification for a smart contract
+    /// -------------------------------------------
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct MethodSpec {
+        pub method_id: String,
+        pub conditions: Vec<Condition>,
+        pub arguments: Vec<MethodArgument>,
+    }
+
+    /// -------------------------------------------
+    /// Represents an argument for a method specification
+    /// -------------------------------------------
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct MethodArgument {
+        pub argument_type: String,
+        pub argument_name: String,
+    }
+
+    /// -------------------------------------------
     /// Hashes a program specification using Keccak256
     /// -------------------------------------------
-    pub fn hash_program_spec(program_spec: &[(Condition, String)]) -> [u8; 32] {
+    pub fn hash_program_spec(program_spec: &[MethodSpec]) -> [u8; 32] {
         let mut hasher = Keccak256::new();
 
-        for (cond, method) in program_spec {
-            let serialized_condition = serialize_condition(cond);
-            let serialized_method = method.as_bytes();
-            // Concat the serialized condition and method
-            let concat_condition_method = [serialized_condition, serialized_method.to_vec()].concat();
-            hasher.update(concat_condition_method);
+        for spec in program_spec {
+            let method_id = spec.method_id.as_bytes();
+            let serialized_conditions = (spec.conditions.iter().map(|cond| serialize_condition(cond))).flatten().collect::<Vec<u8>>();
+            let serialized_arguments = (spec.arguments.iter().map(|arg| serialize_argument(arg))).flatten().collect::<Vec<u8>>();
+
+            // Concatenate the method_id, serialized_conditions and serialized_arguments
+            let concat_method_spec = [method_id, &serialized_conditions, &serialized_arguments].concat();
+            hasher.update(&concat_method_spec);
         }
 
         hasher.finalize().into()
@@ -694,6 +715,21 @@ pub mod conditions {
             Condition::Fixed(fixed) => serialize_fixed_condition(fixed),
             Condition::Relative(relative) => serialize_relative_condition(relative),
         }
+    }
+
+    /// -------------------------------------------
+    /// Serializes a method argument into a byte vector
+    /// -------------------------------------------
+    fn serialize_argument(argument: &MethodArgument) -> Vec<u8> {
+        let mut serialized = Vec::new();
+
+        serialized.extend(argument.argument_type.as_bytes());
+        serialized.push(0); // Null terminator
+
+        serialized.extend(argument.argument_name.as_bytes());
+        serialized.push(0); // Null terminator
+
+        serialized
     }
 
     /// -------------------------------------------
