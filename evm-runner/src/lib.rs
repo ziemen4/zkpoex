@@ -18,7 +18,7 @@ use evm::{
 use hex::encode;
 use hpke::kem::X25519HkdfSha256;
 use hpke::{Kem, Serializable};
-use primitive_types::{H160, H256, U256, U512};
+use primitive_types::{H160, H256, U256};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::Deserialize;
@@ -85,39 +85,28 @@ fn check_condition_op<T: PartialOrd + std::fmt::Debug>(operator: &Operator, firs
     }
 }
 
-fn get_storage_value(
+fn get_account_from_state(
     state: &MemoryStackState<MemoryBackend>,
-    state_key: Vec<&str>,
-) -> U256 {
-    // We expect a format like: <account_address>.storage.<storage_key>
-    let address = H160::from_str(state_key[0]).unwrap();
-    if state_key[1] != "storage" {
-        panic!(
-            "Expected 'storage' keyword in state key, got: {}",
-            state_key[1]
-        );
+    address: H160,
+) -> Basic {
+    // If account does not exist, panic
+    if !state.exists(address) {
+        panic!("Account does not exist: {}", address);
     }
 
-    // Parse the third part as the storage key (which should be a 32-byte hex string)
-    let storage_key =
-        H256::from_str(state_key[2]).expect("Invalid storage key hex provided in state key");
-
-    // Retrieve the storage value from the state.
-    // (Assume your MemoryStackState has a method similar to `storage` that takes an account and a key)
-    let storage_value = state.storage(address, storage_key);
-
-    // TODO: See how to handle properly taking into account that we may want to compare non-numeric things
-    let storage_value_as_u256 = U256::from_big_endian(&storage_value[..]);
-
-    storage_value_as_u256    
+    // Get the account from the state
+    state.basic(address)
 }
 
 fn get_state_value(
     state: &MemoryStackState<MemoryBackend>,
-    state_key: Vec<&str>,
-    account: &Basic,
+    state_key: Vec<&str>
 ) -> U256 {
+    let address = H160::from_str(state_key[0]).unwrap();
+    let account = get_account_from_state(state, address);
+
     // If the state key vector has length 2, then we are accessing the account fields directly
+    // We expect a format like: <account_address>.<field>
     if state_key.len() == 2 {
         match state_key[1] {
             "nonce" => account.nonce,
@@ -128,10 +117,11 @@ fn get_state_value(
         }
     } else if state_key.len() == 3 {
         // If the state key vector has length 3, then we expect a format like: <account_address>.storage.<storage_key>
-        get_storage_value(
-            state,
-            state_key,
-        )
+        let storage_key = H256::from_str(state_key[2]).unwrap();
+        let storage_value = state.storage(address, storage_key);
+       
+       // TODO: Support non numeric values
+        U256::from_big_endian(&storage_value[..])
     } else {
         panic!("Invalid state key format");
     }
@@ -152,71 +142,23 @@ fn check_relative_condition(
         .split('.')
         .collect::<Vec<&str>>();
 
-    // The first state key is always the address of the account
-    let pre_account_address = H160::from_str(pre_state_key[0]).unwrap();
-    let post_account_address = H160::from_str(post_state_key[0]).unwrap();
+    let pre_state_value = get_state_value(pre_state, pre_state_key);
+    let post_state_value = get_state_value(post_state, post_state_key);
 
-    // If account does not exist, panic
-    if !post_state.exists(post_account_address) {
-        panic!("Account does not exist: {}", post_account_address);
-    }
-
-    if !pre_state.exists(pre_account_address) {
-        panic!("Account does not exist: {}", pre_account_address);
-    }
-
-    // Get the account from the state
-    let pre_account_basic = pre_state.basic(pre_account_address);
-    let post_account_basic = post_state.basic(post_account_address);
-
-    println!("PRE ACCOUNT BASIC BALANCE {:?}", pre_account_basic);
-	println!("POST ACCOUNT BASIC BALANCE {:?}", post_account_basic);
-
-    let pre_state_val = get_state_value(
-        pre_state,
-        pre_state_key,
-        &pre_account_basic,
-    );
-    let post_state_val = get_state_value(
-        post_state,
-        post_state_key,
-        &post_account_basic,
-    );
-
-    check_condition_op(&relative_condition.op, pre_state_val, post_state_val)
+    check_condition_op(&relative_condition.op, pre_state_value, post_state_value)
 }
 
 fn check_fixed_condition(
     state: &MemoryStackState<MemoryBackend>,
     fixed_condition: &FixedCondition,
 ) -> bool {
-    // State key is joined by '.', so split it
+    // The state key is joined by '.', so split it
     let state_key = fixed_condition.k_s.split('.').collect::<Vec<&str>>();
-    println!("\n\n---------------------------\n\n");
-    println!("State key: {:?}", state_key);
-    // The first state key is always the address of the account
-    let account_address = H160::from_str(state_key[0]).unwrap();
-
-    // If account does not exist, panic
-    if !state.exists(account_address) {
-        panic!("Account does not exist: {}", account_address);
-    }
-
-    // Get the account from the state
-    let account_basic = state.basic(account_address);
-    println!("Account basic: {:?}", account_basic);
-    println!("Value of fixed_cond {:?}", fixed_condition.v,);
-    println!("\n\n---------------------------\n\n");
-
-    let state_value = get_state_value(
-        state,
-        state_key,
-        &account_basic,
-    );
+    let value = get_state_value(state, state_key);
 
     check_condition_op(
         &fixed_condition.op,
-        state_value,
+        value,
         fixed_condition.v,
     )
 }
