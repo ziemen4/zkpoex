@@ -16,3 +16,4 @@ serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.6" }
 hpke = { version = "0.12.0" }
 rand = { version = "0.8.5" }
+ethabi = { version = "18.0.0" }

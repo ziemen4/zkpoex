@@ -609,7 +609,7 @@ pub mod conditions {
         pub k_s: String,       // State key
         pub op: Operator,      // Operation
         pub k_s_prime: String, // End state key
-        pub input_op: Option<Operator>, // Optional operation for the value
+        pub input_op: ArithmeticOperator, // Arithmetic operation for the value
         pub input: String,   // Input
     }
 
@@ -620,6 +620,8 @@ pub mod conditions {
     pub enum Condition {
         Fixed(FixedCondition),
         Relative(RelativeCondition),
+        InputDependantFixedCondition(InputDependantFixedCondition),
+        InputDependantRelativeCondition(InputDependantRelativeCondition),
     }
 
     /// -------------------------------------------

@@ -1,8 +1,12 @@
 use evm::backend::Basic;
 use shared::conditions::ArithmeticOperator;
+use shared::conditions::InputDependantFixedCondition;
+use shared::conditions::InputDependantRelativeCondition;
+use shared::conditions::MethodArgument;
 use shared::conditions::MethodSpec;
 use shared::context;
 use shared::conditions;
+use shared::input;
 use shared::input::AccountData;
 extern crate alloc;
 extern crate core;
@@ -17,7 +21,7 @@ use evm::{
     executor::stack::{MemoryStackState, StackExecutor, StackSubstateMetadata},
     Config, ExitReason, ExitSucceed,
 };
-use hex::encode;
+use hex::{encode, FromHex};
 use hpke::kem::X25519HkdfSha256;
 use hpke::{Kem, Serializable};
 use primitive_types::{H160, H256, U256};
@@ -25,6 +29,8 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::Deserialize;
 use serde_json::from_str;
+use ethabi::{ParamType, decode};
+use std::str::FromStr;
 
 #[derive(Debug, Deserialize)]
 pub struct DeserializeMemoryVicinity {
@@ -71,6 +77,29 @@ pub fn generate_keypair(seed: &[u8; 32]) -> (String, String) {
     let pk_b64 = encode(pk.to_bytes());
 
     (sk_b64, pk_b64)
+}
+
+
+fn decode_calldata(
+    calldata_hex: &str,
+    param_types: &[&str]
+) -> Result<Vec<ethabi::Token>, Box<dyn std::error::Error>> {
+    // Convert hex string to bytes
+    let calldata = Vec::from_hex(calldata_hex.strip_prefix("0x").unwrap_or(calldata_hex))?;
+
+    // Split method ID (first 4 bytes) from arguments
+    let (_, args_data) = calldata.split_at(4);
+    
+    // Parse parameter types from strings
+    let params: Vec<ParamType> = param_types
+        .iter()
+        .map(|s| ParamType::from_str(s))
+        .collect::<Result<_, _>>()?;
+
+    // Decode arguments using ethabi
+    let decoded = decode(&params, args_data)?;
+
+    Ok(decoded)
 }
 
 fn check_condition_op<T: PartialOrd + std::fmt::Debug>(operator: &Operator, first_val: T, second_val: T) -> bool {
@@ -142,6 +171,35 @@ fn get_state_value(
     }
 }
 
+fn get_input_value(
+    calldata: &str,
+    method_arguments: Vec<MethodArgument>,
+    method_name: String
+) -> U256 {
+    // Use decode_calldata to obtain the values for the arguments
+    let decoded = decode_calldata(calldata, &method_arguments.iter().map(|arg| &arg.argument_type[..]).collect::<Vec<&str>>()).unwrap();
+
+    // If the decoded arguments are empty, panic
+    if decoded.is_empty() {
+        panic!("No arguments decoded");
+    }
+
+    // If the decoded arguments are not all U256, panic
+    if !decoded.iter().all(|arg| matches!(arg, ethabi::Token::Uint(_))) {
+        panic!("Not all arguments are U256");
+    }
+
+    // Obtain the argument value that matches the method name
+    let argument_value = decoded
+        .iter()
+        .zip(method_arguments.iter())
+        .find(|(_, arg)| arg.argument_name == method_name)
+        .unwrap()
+        .0;
+
+    argument_value.clone().to_uint().unwrap()
+}
+
 fn check_relative_condition(
     // TODO: See if its possible to use the MemoryStackState, for now use the BTreeMap instead
     pre_state: &MemoryStackState<MemoryBackend>,
@@ -191,6 +249,48 @@ fn check_fixed_condition(
     )
 }
 
+fn check_input_dependant_fixed_condition(
+    state: &MemoryStackState<MemoryBackend>,
+    input_dependant_fixed_condition: &InputDependantFixedCondition,
+    calldata: &str,
+    method_arguments: Vec<MethodArgument>,
+) -> bool {
+        // The state key is joined by '.', so split it
+        let state_key = input_dependant_fixed_condition.k_s.split('.').collect::<Vec<&str>>();
+        let value = get_state_value(state, state_key);
+        let input_value = get_input_value(calldata, method_arguments, input_dependant_fixed_condition.input);
+    
+        check_condition_op(
+            &input_dependant_fixed_condition.op,
+            value,
+            input_value,
+        )
+}
+
+fn check_input_dependant_relative_condition(
+    state: &MemoryStackState<MemoryBackend>,
+    input_dependant_relative_condition: &InputDependantRelativeCondition,
+    calldata: &str,
+    method_arguments: Vec<MethodArgument>,
+) -> bool {
+    // Pre state key is joined by '.', so split it
+    let pre_state_key = input_dependant_relative_condition.k_s.split('.').collect::<Vec<&str>>();
+
+    // Post state key is joined by '.', so split it
+    let post_state_key = input_dependant_relative_condition
+        .k_s_prime
+        .split('.')
+        .collect::<Vec<&str>>();
+
+    let pre_state_value = get_state_value(state, pre_state_key);
+    let post_state_value = get_state_value(state, post_state_key);
+
+    let input_value = get_input_value(calldata, method_arguments, input_dependant_relative_condition.input);
+    let second_val = execute_condition_op(input_op, post_state_value, input_value);
+
+    check_condition_op(&input_dependant_relative_condition.op, pre_state_value, second_val)
+}
+
 fn from_deserialized_vicinity(deserialized_vicinity: DeserializeMemoryVicinity) -> MemoryVicinity {
     MemoryVicinity {
         gas_price: U256::from_str(&deserialized_vicinity.gas_price).unwrap(),
@@ -229,9 +329,10 @@ fn build_global_state(
     }
 }
 
-fn filter_program_spec(program_spec: &Vec<MethodSpec>, method_id: &str) -> Vec<Condition> {
+fn filter_program_spec(program_spec: &Vec<MethodSpec>, method_id: &str) -> (Vec<Condition>, Vec<MethodArgument>){
+    // TODO: Improve by only iterating once
     // Obtain the method spec for the given method_id and return its conditions
-    program_spec
+    let conditions = program_spec
         .iter()
         .filter_map(|method_spec| {
             if method_spec.method_id[..] == method_id[..] {
@@ -241,7 +342,21 @@ fn filter_program_spec(program_spec: &Vec<MethodSpec>, method_id: &str) -> Vec<C
             }
         })
         .flatten()
-        .collect()
+        .collect();
+
+    let arguments = program_spec
+        .iter()
+        .filter_map(|method_spec| {
+            if method_spec.method_id[..] == method_id[..] {
+                Some(method_spec.arguments.clone())
+            } else {
+                None
+            }
+        })
+        .flatten()
+        .collect();
+
+    (conditions, arguments)
 }
 
 fn verify_pre_state(
@@ -257,7 +372,13 @@ fn verify_pre_state(
                     let result = check_fixed_condition(&state, &condition);
                     assert!(result == true);
                 }
+                Condition::InputDependantFixedCondition(_) => {
+                    // Continue iterating, this doesnt need to be checked
+                }
                 Condition::Relative(_) => {
+                    // Continue iterating, this doesnt need to be checked
+                }
+                Condition::InputDependantRelativeCondition(_) => {
                     // Continue iterating, this doesnt need to be checked
                 }
             }
@@ -268,10 +389,12 @@ fn verify_pre_state(
 fn prove_final_state(
     pre_state: &MemoryStackState<MemoryBackend>,
     post_state: &MemoryStackState<MemoryBackend>,
-    method_conditions: &Vec<Condition>,
+    program_spec: &Vec<MethodSpec>,
+    calldata: &str,
 ) -> bool {
     let mut exit_succeed = false;
-
+    let (method_conditions, method_arguments) = filter_program_spec(&program_spec, &calldata[..8]);
+    
     // First check if there is an exploit
     for condition in method_conditions {
         match condition {
@@ -288,6 +411,32 @@ fn prove_final_state(
                 let result = check_relative_condition(&pre_state, &post_state, &condition);
                 if !result {
                     println!("Relative condition failed: {:?}", condition);
+                    exit_succeed = true;
+                    break;
+                }
+            }
+            Condition::InputDependantFixedCondition(condition) => {
+                let result = check_input_dependant_fixed_condition(
+                    &post_state, 
+                    &condition,
+                    &calldata,
+                    method_arguments.clone()
+                );
+                if !result {
+                    println!("Input dependant fixed condition failed: {:?}", condition);
+                    exit_succeed = true;
+                    break;
+                }
+            }
+            Condition::InputDependantRelativeCondition(_) => {
+                let result = check_input_dependant_relative_condition(
+                    &post_state, 
+                    &condition,
+                    &calldata,
+                    method_arguments.clone()
+                );
+                if !result {
+                    println!("Input dependant relative condition failed: {:?}", condition);
                     exit_succeed = true;
                     break;
                 }
@@ -399,12 +548,9 @@ pub fn run_evm(
     
     // 4. Prove that the final state is invalid wrt the program specification
     let post_state = executor.state();
-    let method_id = &calldata[..8];
-    let method_conditions: Vec<Condition> = filter_program_spec(&program_spec, method_id);
-    println!("Method conditions: {:?}", method_conditions);
 
     // 4.1 Depending on the returning boolean value, we can determine if an exploit was found
-    let exploit_found = prove_final_state(&pre_state_snapshot, &post_state, &method_conditions);
+    let exploit_found = prove_final_state(&pre_state_snapshot, &post_state, &program_spec, calldata);
 
     println!("Exploit found: {:?}", exploit_found);
 
