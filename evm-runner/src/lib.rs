@@ -1,4 +1,5 @@
 use evm::backend::Basic;
+use shared::conditions::ArithmeticOperator;
 use shared::context;
 use shared::conditions;
 use shared::input::AccountData;
@@ -85,6 +86,19 @@ fn check_condition_op<T: PartialOrd + std::fmt::Debug>(operator: &Operator, firs
     }
 }
 
+fn execute_condition_op<
+    T: PartialOrd + std::fmt::Debug + std::ops::Add<Output = T> + std::ops::Sub<Output = T> + std::ops::Mul<Output = T> + std::ops::Div<Output = T> + std::ops::Rem<Output = T>,
+>(operator: &ArithmeticOperator, first_val: T, second_val: T) -> T {
+    match operator {
+        ArithmeticOperator::Add => first_val + second_val,
+        ArithmeticOperator::Sub => first_val - second_val,
+        ArithmeticOperator::Mul => first_val * second_val,
+        ArithmeticOperator::Div => first_val / second_val,
+        ArithmeticOperator::Mod => first_val % second_val,
+        _ => panic!("Invalid operator: {:?}", operator),
+    }
+}
+
 fn get_account_from_state(
     state: &MemoryStackState<MemoryBackend>,
     address: H160,
@@ -145,7 +159,20 @@ fn check_relative_condition(
     let pre_state_value = get_state_value(pre_state, pre_state_key);
     let post_state_value = get_state_value(post_state, post_state_key);
 
-    check_condition_op(&relative_condition.op, pre_state_value, post_state_value)
+    // If relative condition value_op and v are defined, it means we must apply value_op to the post_state_value to obtain
+    // second_val = value_op(post_state_value, v)
+    let second_val: U256 = match &relative_condition.value_op {
+        Some(value_op) => {
+            // Check if "v" is defined
+            match relative_condition.v {
+                Some(v) => execute_condition_op(value_op, post_state_value, v),
+                None => panic!("Value 'v' must be defined when 'value_op' is defined"),
+            }
+        }
+        None => post_state_value,
+    };
+    
+    check_condition_op(&relative_condition.op, pre_state_value, second_val)
 }
 
 fn check_fixed_condition(

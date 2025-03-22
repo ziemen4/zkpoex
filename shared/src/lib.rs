@@ -554,7 +554,20 @@ pub mod conditions {
     }
 
     /// -------------------------------------------
+    /// Defines the arithmetic operators for conditions
+    /// -------------------------------------------
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub enum ArithmeticOperator {
+        Add, // Addition
+        Sub, // Subtraction
+        Mul, // Multiplication
+        Div, // Division
+        Mod, // Modulo
+    }
+
+    /// -------------------------------------------
     /// Represents a fixed condition with a state key, operator, and expected value
+    /// val(k_s) op v
     /// -------------------------------------------
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct FixedCondition {
@@ -564,13 +577,40 @@ pub mod conditions {
     }
 
     /// -------------------------------------------
-    /// Represents a relative condition comparing two state keys
+    /// Represents a relative condition comparing two state keys and an optional value
+    /// val(k_s) op (val(k_s_prime) value_op v)
     /// -------------------------------------------
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct RelativeCondition {
         pub k_s: String,       // State key
         pub op: Operator,      // Operation
         pub k_s_prime: String, // End state key
+        pub value_op: Option<ArithmeticOperator>, // Optional aritmetic operator for the value
+        pub v: Option<U256>,   // Optional value
+    }
+
+    /// -------------------------------------------
+    /// Represents a fixed condition whcih depends on the input
+    /// val(k_s) op input
+    /// -------------------------------------------
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct InputDependantFixedCondition {
+        pub k_s: String,  // State key
+        pub op: Operator, // Operation
+        pub input: String, // Input
+    }
+
+    /// -------------------------------------------
+    /// Represents a relative condition comparing two state keys and an optional input
+    /// val(k_s) op (val(k_s_prime) input_op input)
+    /// -------------------------------------------
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct InputDependantRelativeCondition {
+        pub k_s: String,       // State key
+        pub op: Operator,      // Operation
+        pub k_s_prime: String, // End state key
+        pub input_op: Option<Operator>, // Optional operation for the value
+        pub input: String,   // Input
     }
 
     /// -------------------------------------------
