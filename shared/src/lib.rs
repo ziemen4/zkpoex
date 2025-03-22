@@ -710,12 +710,71 @@ pub mod conditions {
     }
 
     /// -------------------------------------------
+    /// Serializes an input-dependant fixed condition into a byte vector
+    /// -------------------------------------------
+    fn serialize_input_dependant_fixed_condition(cond: &InputDependantFixedCondition) -> Vec<u8> {
+        let mut serialized = Vec::new();
+
+        serialized.extend(cond.k_s.as_bytes());
+        serialized.push(0); // Null terminator
+
+        serialized.push(match cond.op {
+            Operator::Eq => 0x00,
+            Operator::Neq => 0x01,
+            Operator::Gt => 0x02,
+            Operator::Ge => 0x03,
+            Operator::Lt => 0x04,
+            Operator::Le => 0x05,
+        });
+
+        serialized.extend(cond.input.as_bytes());
+        serialized.push(0); // Null terminator
+        serialized
+    }
+
+    /// -------------------------------------------
+    /// Serializes an input-dependant relative condition into a byte vector
+    /// -------------------------------------------
+    fn serialize_input_dependant_relative_condition(cond: &InputDependantRelativeCondition) -> Vec<u8> {
+        let mut serialized = Vec::new();
+
+        serialized.extend(cond.k_s.as_bytes());
+        serialized.push(0); // Null terminator
+
+        serialized.push(match cond.op {
+            Operator::Eq => 0x00,
+            Operator::Neq => 0x01,
+            Operator::Gt => 0x02,
+            Operator::Ge => 0x03,
+            Operator::Lt => 0x04,
+            Operator::Le => 0x05,
+        });
+
+        serialized.extend(cond.k_s_prime.as_bytes());
+        serialized.push(0); // Null terminator
+
+        serialized.push(match cond.input_op {
+            ArithmeticOperator::Add => 0x00,
+            ArithmeticOperator::Sub => 0x01,
+            ArithmeticOperator::Mul => 0x02,
+            ArithmeticOperator::Div => 0x03,
+            ArithmeticOperator::Mod => 0x04,
+        });
+
+        serialized.extend(cond.input.as_bytes());
+        serialized.push(0); // Null terminator
+        serialized
+    }
+
+    /// -------------------------------------------
     /// Serializes a condition into a byte vector
     /// -------------------------------------------
     fn serialize_condition(cond: &Condition) -> Vec<u8> {
         match cond {
             Condition::Fixed(fixed) => serialize_fixed_condition(fixed),
             Condition::Relative(relative) => serialize_relative_condition(relative),
+            Condition::InputDependantFixedCondition(input_fixed) => serialize_input_dependant_fixed_condition(input_fixed),
+            Condition::InputDependantRelativeCondition(input_relative) => serialize_input_dependant_relative_condition(input_relative),
         }
     }
 

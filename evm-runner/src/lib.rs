@@ -6,7 +6,6 @@ use shared::conditions::MethodArgument;
 use shared::conditions::MethodSpec;
 use shared::context;
 use shared::conditions;
-use shared::input;
 use shared::input::AccountData;
 extern crate alloc;
 extern crate core;
@@ -21,7 +20,7 @@ use evm::{
     executor::stack::{MemoryStackState, StackExecutor, StackSubstateMetadata},
     Config, ExitReason, ExitSucceed,
 };
-use hex::{encode, FromHex};
+use hex::encode;
 use hpke::kem::X25519HkdfSha256;
 use hpke::{Kem, Serializable};
 use primitive_types::{H160, H256, U256};
@@ -29,8 +28,8 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::Deserialize;
 use serde_json::from_str;
-use ethabi::{ParamType, decode};
-use std::str::FromStr;
+use ethabi::{ParamType, Token};
+use ethabi::param_type::Reader;  // Correct parser import
 
 #[derive(Debug, Deserialize)]
 pub struct DeserializeMemoryVicinity {
@@ -79,27 +78,26 @@ pub fn generate_keypair(seed: &[u8; 32]) -> (String, String) {
     (sk_b64, pk_b64)
 }
 
+// Working parameter parser for any ethabi version
+fn parse_param_type(s: &str) -> Result<ParamType, ethabi::Error> {
+    Reader::read(s)
+}
 
-fn decode_calldata(
+// Full decoder implementation
+pub fn decode_calldata(
     calldata_hex: &str,
     param_types: &[&str]
-) -> Result<Vec<ethabi::Token>, Box<dyn std::error::Error>> {
-    // Convert hex string to bytes
-    let calldata = Vec::from_hex(calldata_hex.strip_prefix("0x").unwrap_or(calldata_hex))?;
-
-    // Split method ID (first 4 bytes) from arguments
-    let (_, args_data) = calldata.split_at(4);
+) -> Result<Vec<Token>, Box<dyn std::error::Error>> {
+    let calldata = hex::decode(calldata_hex.trim_start_matches("0x"))?;
+    let (_, args_data) = calldata.split_at(4.min(calldata.len()));
     
-    // Parse parameter types from strings
     let params: Vec<ParamType> = param_types
         .iter()
-        .map(|s| ParamType::from_str(s))
+        .map(|s| parse_param_type(s))
         .collect::<Result<_, _>>()?;
 
-    // Decode arguments using ethabi
-    let decoded = decode(&params, args_data)?;
-
-    Ok(decoded)
+    ethabi::decode(&params, args_data)
+        .map_err(Into::into)
 }
 
 fn check_condition_op<T: PartialOrd + std::fmt::Debug>(operator: &Operator, first_val: T, second_val: T) -> bool {
@@ -125,7 +123,6 @@ fn execute_condition_op<
         ArithmeticOperator::Mul => first_val * second_val,
         ArithmeticOperator::Div => first_val / second_val,
         ArithmeticOperator::Mod => first_val % second_val,
-        _ => panic!("Invalid operator: {:?}", operator),
     }
 }
 
@@ -197,7 +194,7 @@ fn get_input_value(
         .unwrap()
         .0;
 
-    argument_value.clone().to_uint().unwrap()
+    argument_value.clone().into_uint().unwrap()
 }
 
 fn check_relative_condition(
@@ -258,7 +255,7 @@ fn check_input_dependant_fixed_condition(
         // The state key is joined by '.', so split it
         let state_key = input_dependant_fixed_condition.k_s.split('.').collect::<Vec<&str>>();
         let value = get_state_value(state, state_key);
-        let input_value = get_input_value(calldata, method_arguments, input_dependant_fixed_condition.input);
+        let input_value = get_input_value(calldata, method_arguments, input_dependant_fixed_condition.input.clone());
     
         check_condition_op(
             &input_dependant_fixed_condition.op,
@@ -285,8 +282,8 @@ fn check_input_dependant_relative_condition(
     let pre_state_value = get_state_value(state, pre_state_key);
     let post_state_value = get_state_value(state, post_state_key);
 
-    let input_value = get_input_value(calldata, method_arguments, input_dependant_relative_condition.input);
-    let second_val = execute_condition_op(input_op, post_state_value, input_value);
+    let input_value = get_input_value(calldata, method_arguments, input_dependant_relative_condition.input.clone());
+    let second_val = execute_condition_op(&input_dependant_relative_condition.input_op, post_state_value, input_value);
 
     check_condition_op(&input_dependant_relative_condition.op, pre_state_value, second_val)
 }
@@ -428,7 +425,7 @@ fn prove_final_state(
                     break;
                 }
             }
-            Condition::InputDependantRelativeCondition(_) => {
+            Condition::InputDependantRelativeCondition(condition) => {
                 let result = check_input_dependant_relative_condition(
                     &post_state, 
                     &condition,
