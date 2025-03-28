@@ -2,20 +2,20 @@
 // The ELF is used for proving and the ID is used for verification.
 use methods::{ZKPOEX_GUEST_ELF, ZKPOEX_GUEST_ID};
 
-use std::collections::BTreeMap;
-use shared::utils;
-use shared::evm_utils;
-use shared::input::AccountData;
+use bytemuck::cast_slice;
+use dotenv::dotenv;
 use primitive_types::U256;
 use risc0_zkvm::{default_prover, ExecutorEnv, InnerReceipt, SuccinctReceipt};
-use bytemuck::cast_slice; 
 use serde::Serialize;
+use serde_json;
+use shared::evm_utils;
+use shared::input::AccountData;
+use shared::utils;
+use std::collections::BTreeMap;
+use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use serde_json;
-use dotenv::dotenv;
-use std::env;
 use tokio;
 
 fn save_bytes32(filename: &str, data: &[u8]) -> std::io::Result<()> {
@@ -30,15 +30,13 @@ fn save_bytes32(filename: &str, data: &[u8]) -> std::io::Result<()> {
     Ok(())
 }
 
-
 #[derive(Serialize, Debug)]
 struct InputData<'a> {
     calldata: &'a str,
     context_state: Vec<AccountData>,
     program_spec: String,
-    blockchain_settings: String
+    blockchain_settings: String,
 }
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,149 +44,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::filter::EnvFilter::from_default_env())
         .init();
-    
+
     dotenv().ok();
-    // An executor environment describes the configurations for the zkVM
-    // including program inputs.
-    // A default ExecutorEnv can be created like so:
-    // `let env = ExecutorEnv::builder().build().unwrap();`
-    // However, this `env` does not have any inputs.
-    //
-    // To add guest input to the executor environment, use
-    // ExecutorEnvBuilder::write().
-    // To access this method, you'll need to use ExecutorEnv::builder(), which
-    // creates an ExecutorEnvBuilder. When you're done adding input, call
-    // ExecutorEnvBuilder::build().
-     
+
     // Parse CLI arguments
     let matches = utils::parse_cli_args();
 
     let function_name = matches.get_one::<String>("function").unwrap();
     let params = matches.get_one::<String>("params").unwrap();
     let conditions = matches.get_one::<String>("conditions").unwrap();
-    let contract_bytecode_file = matches.get_one::<std::path::PathBuf>("contract-bytecode").unwrap();
+    let context_state_file = matches
+        .get_one::<std::path::PathBuf>("context-state")
+        .unwrap();
     let abi_file = <std::path::PathBuf>::from(matches.get_one::<String>("abi").unwrap());
+    let program_spec_file = matches
+        .get_one::<std::path::PathBuf>("program-spec")
+        .unwrap();
     let blockchain_settings = evm_utils::get_blockchain_settings().await?;
 
-    // Read the contract bytecode file --> Generate the calldata dynamically
-    let contract_bytecode_deployment = fs::read_to_string(contract_bytecode_file).expect("Failed to read contract bytecode file");
+    // Read the contract bytecode file and generate the calldata dynamically
+    let contract_bytecode_deployment =
+        fs::read_to_string(contract_bytecode_file).expect("Failed to read contract bytecode file");
     let calldata = utils::generate_function_signature(function_name, &[params]);
 
     println!("Calldata: {}", calldata);
 
-    let private_key = env::var("WALLET_PRIV_KEY")?;
-    let output = evm_utils::deploy_contract(&private_key, &contract_bytecode_deployment)?;
-    let td_address = evm_utils::extract_contract_address(&output).expect("Failed to extract contract address").to_string().trim_start_matches("0x").to_string();
-    let td_nonce = U256::from_dec_str(&evm_utils::get_nonce(&td_address).await?).expect("Failed to parse nonce");
-    let td_balance = U256::from_dec_str(&evm_utils::get_balance(&td_address).await?).expect("Failed to parse balance");
-    
-    let td_storage = if conditions.contains("var_") {
-        // Use get_storage_at() to get the storage of the contract at a given slot
-        let contract_variables = evm_utils::populate_state_variables_from_abi(abi_file)
-            .expect("Failed to populate contract variables from ABI");
-        
-        // TODO: Dynamically get the file.sol from testnet (this needs implementation)
-        // TODO: Change fot the file.sol that you want to extract the storage_slots
-        let storage_slots = evm_utils::get_storage_slots_for_variables(
-            "contracts/src/examples/OverUnderFlowVulnerable.sol",
-            &contract_variables
-        )?;
-        
-        let key_var = utils::extract_key_from_condition(conditions);
-        let var_name = key_var.trim_start_matches("var_");
-        let var_name_str = storage_slots.get(var_name)
-            .expect("Key not found in storage_slots").to_string();
-        println!("Var name: {}", var_name_str);
-        
-        
-        evm_utils::get_storage_at(&td_address, &var_name_str).expect("Failed to get storage")
-    } else {
-        BTreeMap::new()
-    };
-    
+    // Read the context state and program specification files
+    let context_state_json = fs::read_to_string(context_state_file).expect("Failed to read file");
+    let context_state: Vec<AccountData> = serde_json::from_str(&context_state_json)?;
 
-    println!("Contract storage: {:?}", td_storage);
+    let program_spec_json = fs::read_to_string(program_spec_file).expect("Failed to read file");
+    let program_spec: BTreeMap<String, serde_json::Value> =
+        serde_json::from_str(&program_spec_json)?;
 
-    //---------------------------------------------------------------------------------------------------------------------
-
-    let contract_bytecode = evm_utils::get_code(&td_address).await.expect("Failed to extract contract_bytecode").to_string().trim_start_matches("0x").to_string();
-    println!("Contract bytecode: {}", contract_bytecode);
-    
-    let td_code = hex::decode(contract_bytecode.trim()).unwrap();
-
-    let target_data = AccountData {
-        address: td_address.clone(),
-        nonce: td_nonce,
-        balance: td_balance,
-        storage: td_storage,
-        code: td_code,
-    };
-
-    println!("TD STORAGE: {:?}", target_data.storage);
-
-    println!("Target data: {:?}", target_data);
-
-    //TODO: handle the caller_data if is a wallet or a contract
-    //Assume that the caller_data is a wallet
-
-    let cd_address = evm_utils::get_wallet_address(&private_key).expect("Failed to extract contract address").to_string().trim_start_matches("0x").to_string();
-    let cd_nonce = U256::from_dec_str(&evm_utils::get_nonce(&cd_address).await?).expect("Failed to parse nonce");
-    let cd_balance = U256::from_dec_str(&evm_utils::get_balance(&cd_address).await?).expect("Failed to parse balance");
-    
-
-    let caller_data = AccountData {
-        address: cd_address,
-        nonce: cd_nonce,
-        balance: cd_balance,
-        storage: BTreeMap::new(), 
-        code: vec![],
-    };
-    let custom_data: Vec<AccountData> = vec![];
-
-    // context_state is a vector of target_data, caller_data and flattened custom_data
-    let context_state = {
-        let mut v = vec![target_data, caller_data];
-        v.extend(custom_data);
-        v
-    };
-
-    // Set Dynamic Program Specification from utils::parse_conditions()
-    // ----------------------------------------------------------------
-
-    let program_spec = vec![
-        // Program specification is a list of (condition, method) pairs
-        // Where method is defined by its method id
-        // and condition is a list of conditions that must be satisfied for the method to be executed
-        (
-            utils::parse_condition(conditions,&td_address),
-            calldata[..8].to_string()
-        ),
-    ];
-
-    // ----------------------------------------------------------------
-    // Send transaction to the contract with the calldata generated to exploit the contract, but is onchain
-    // is not related to the zkVM, we need to find a path for this
-    let transaction_result  = evm_utils::send_transaction_with_calldata(&td_address, &private_key, &calldata).unwrap();
-    println!("Transaction result: {:?}", transaction_result);
-
-
-    let context_state_json = serde_json::to_string(&context_state).unwrap();
-    let program_spec_json = serde_json::to_string(&program_spec).unwrap();
-
-    let context_state_hash = utils::keccak256(&context_state_json);
-    let program_spec_hash = utils::keccak256(&program_spec_json);
-
-    println!("\n---------\n");
-    println!("Context State Hash: 0x{}", context_state_hash);
-
-    println!("\n---------\n");
-    println!("Program Spec Hash: 0x{}", program_spec_hash);
-
+    // Construct the input data
     let input = InputData {
         calldata: &calldata,
         context_state,
-        program_spec: serde_json::to_string(&program_spec).unwrap(),
-        blockchain_settings
+        program_spec,
+        blockchain_settings,
     };
 
     println!("Sending input to guest: {:?}", input);
@@ -209,20 +103,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // extract the receipt.
     let receipt = prove_info.receipt;
 
-
-    // OLD TODO here: Implement code for retrieving receipt journal here.
-    
     let journal_bytes = receipt.journal.bytes.as_slice();
     let seal_bytes: &[u8] = match &receipt.inner {
-        InnerReceipt::Succinct(SuccinctReceipt { seal, .. }) => cast_slice(seal), 
+        InnerReceipt::Succinct(SuccinctReceipt { seal, .. }) => cast_slice(seal),
         InnerReceipt::Composite { .. } => {
             eprintln!("Warning: Full receipt does not contain succinct seal!");
-            &[0u8; 32] 
+            &[0u8; 32]
         }
         _ => {
-        eprintln!("Warning: Unknown receipt type!");
-        &[0u8; 32]
-    }
+            eprintln!("Warning: Unknown receipt type!");
+            &[0u8; 32]
+        }
     };
 
     // Save the journal and seal and provide after to VerifierContract.sol
@@ -244,6 +135,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match receipt.verify(ZKPOEX_GUEST_ID) {
         Ok(_) => println!("Verification successful!"),
         Err(e) => println!("Verification failed: {:?}", e),
-    } 
-    Ok(()) 
+    }
+    Ok(())
 }

@@ -1,31 +1,79 @@
-use shared::evm_utils;
 use dotenv::dotenv;
-use std::env;
+use hex;
+use serde_json;
+use shared::conditions::hash_program_spec;
+use shared::conditions::MethodSpec;
+use shared::context::hash_context_state;
+use shared::evm_utils;
+use shared::input::AccountData;
+use shared::utils;
 use std::fs;
 use tokio;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
-    let private_key = env::var("WALLET_PRIV_KEY")?;
+    // Parse CLI arguments
+    let matches = utils::parse_cli_args();
 
+    // CLI Arguments are as follows
+    // --private-key: Private key of the wallet
+    // --risc0-verifier-contract-address: Address of the RISC0 verifier contract
+    // --context-state: Path to the context state file
+    // --program-spec: Path to the program specification file
+    let private_key = matches.get_one::<String>("private-key").unwrap();
+    let risc0_verifier_contract_address = matches
+        .get_one::<String>("risc0-verifier-contract-address")
+        .unwrap();
+    let context_state_file = matches
+        .get_one::<std::path::PathBuf>("context-state")
+        .unwrap();
+    let program_spec_file = matches
+        .get_one::<std::path::PathBuf>("program-spec")
+        .unwrap();
 
+    // Read the context state and program specification files
+    let context_state_json = fs::read_to_string(context_state_file).expect("Failed to read file");
+    let context_state: Vec<AccountData> = serde_json::from_str(&context_state_json)?;
+    let context_state_hash: String = hex::encode(hash_context_state(&context_state));
 
+    let program_spec_json = fs::read_to_string(program_spec_file).expect("Failed to read file");
+    let program_spec: Vec<MethodSpec> = serde_json::from_str(&program_spec_json)?;
+    let program_spec_hash: String = hex::encode(hash_program_spec(&program_spec));
+
+    // Deploy the ImageID contract
     let contract_bytecode_file_imageid = "./bytecode/ImageID.bin";
-    let contract_bytecode_deployment_imageid = fs::read_to_string(contract_bytecode_file_imageid).expect("Failed to read contract bytecode file");
-    let imageid_deploy_output = evm_utils::deploy_contract(&private_key, &contract_bytecode_deployment_imageid)?;
-    let image_id = evm_utils::extract_contract_address(&imageid_deploy_output).expect("Failed to extract contract address").to_string();
+    let contract_bytecode_deployment_imageid = fs::read_to_string(contract_bytecode_file_imageid)
+        .expect("Failed to read contract bytecode file");
+    let imageid_deploy_output =
+        evm_utils::deploy_contract(&private_key, &contract_bytecode_deployment_imageid)?;
+    let image_id = evm_utils::extract_contract_address(&imageid_deploy_output)
+        .expect("Failed to extract contract address")
+        .to_string();
     println!("ImageID contract deployed at address: {}", image_id);
 
+    // Deploy the Verifier contract
     let contract_bytecode_file_verifier = "./bytecode/VerifierContract.bin";
-    let contract_bytecode_deployment_verifier = fs::read_to_string(contract_bytecode_file_verifier).expect("Failed to read contract bytecode file");
-    let output = evm_utils::deploy_verifier_contract(&private_key, &contract_bytecode_deployment_verifier,"0xf70aBAb028Eb6F4100A24B203E113D94E87DE93C","0x8a2e07835061b39c920fd3356a7722f0ae10a7f4508151831cf4febe733a0279","0x50cbccdabb6afaac348de5304e8ad32dc2a7ea655c031388f989f2b5faaf0552",&image_id)?;
-    let td_address = evm_utils::extract_contract_address(&output).expect("Failed to extract contract address").to_string().trim_start_matches("0x").to_string();
-    println!("Verifier contract deployed at address: 0x{}", td_address);
+    let contract_bytecode_deployment_verifier = fs::read_to_string(contract_bytecode_file_verifier)
+        .expect("Failed to read contract bytecode file");
+    let output = evm_utils::deploy_verifier_contract(
+        &private_key,
+        &contract_bytecode_deployment_verifier,
+        &risc0_verifier_contract_address,
+        &program_spec_hash,
+        &context_state_hash,
+        &image_id,
+    )?;
 
-    
+    let verifier_address = evm_utils::extract_contract_address(&output)
+        .expect("Failed to extract contract address")
+        .to_string()
+        .trim_start_matches("0x")
+        .to_string();
+    println!(
+        "Verifier contract deployed at address: 0x{}",
+        verifier_address
+    );
 
     Ok(())
 }
-//context State: 0x50cbccdabb6afaac348de5304e8ad32dc2a7ea655c031388f989f2b5faaf0552
-//Prog Spec :0x8a2e07835061b39c920fd3356a7722f0ae10a7f4508151831cf4febe733a0279 

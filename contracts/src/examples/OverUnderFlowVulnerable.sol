@@ -19,7 +19,7 @@ contract OverUnderFlowVulnerable {
             balance -= amount;
         }
     }
-        
+
     // Fallback function to receive Ether
     receive() external payable {}
 }

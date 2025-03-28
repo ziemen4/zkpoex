@@ -1,17 +1,16 @@
 //PLEASE NOTE: We can create other .rs files in the shared/src/ directory and import them here or in other modules if this "template" becomes too large.
 
-
 /////////////////////////////////////////////////////////////////////////////
-                            //HOST MODULES//
+//HOST MODULES//
 /////////////////////////////////////////////////////////////////////////////
 
 pub mod utils {
-    use tiny_keccak::{Hasher, Keccak};
+    use crate::conditions::{Condition, FixedCondition, Operator};
     use clap::{Arg, Command};
-    use crate::conditions::{FixedCondition,Condition,Operator};
+    use primitive_types::{H256, U256};
     use std::path::PathBuf;
-    use primitive_types::{U256,H256};
     use std::str;
+    use tiny_keccak::{Hasher, Keccak};
 
     /// -------------------------------------------
     /// Generates the function signature in Solidity ABI format.
@@ -44,7 +43,7 @@ pub mod utils {
             format!("{:0>64x}", value)
         } else if param.starts_with("0x") {
             let mut padded = param[2..].to_string(); //for address
-            padded = format!("{:0>64}", padded); 
+            padded = format!("{:0>64}", padded);
             padded
         } else if let Ok(number) = param.parse::<u128>() {
             format!("{:0>64x}", number) //for numbers
@@ -89,15 +88,13 @@ pub mod utils {
                 v: value,
             })
         } else if key.starts_with("var_") {
-
-            let var_name = key.trim_start_matches("var_"); 
+            let var_name = key.trim_start_matches("var_");
             Condition::Fixed(FixedCondition {
                 k_s: format!("{}.var_{}", td_address, var_name),
                 op,
                 v: value,
             })
-        }
-        else {
+        } else {
             panic!("Unsupported key in condition: {}", key);
         }
     }
@@ -120,7 +117,7 @@ pub mod utils {
 
         hasher.update(input.as_bytes());
         hasher.finalize(&mut output);
-        
+
         H256::from(output)
     }
 
@@ -132,60 +129,71 @@ pub mod utils {
             .version("1.0")
             .author("Your Name <your.email@example.com>")
             .about("Generates zk proofs for Ethereum smart contract exploits")
-            .arg(Arg::new("function")
-                .short('f')
-                .long("function")
-                .value_name("FUNCTION")
-                .help("Sets the function name (e.g., 'exploit')")
-                .required(true))
-            .arg(Arg::new("params") 
-                .short('p')
-                .long("params")
-                .value_name("PARAMS")
-                .help("Sets the function parameters (e.g., 'true')")
-                .required(true))
-            .arg(Arg::new("conditions")
-                .short('c')
-                .long("conditions")
-                .value_name("CONDITIONS")
-                .help("Sets the conditions for the exploit (e.g., 'balance > 0')")
-                .required(true))
-            .arg(Arg::new("contract-bytecode") 
-                .short('b')
-                .long("contract-bytecode")
-                .value_name("BYTECODE_FILE")
-                .help("Sets the contract bytecode file path")
-                .required(true)
-                .value_parser(clap::value_parser!(PathBuf)))
-            .arg(Arg::new("network")
-                .short('n')
-                .long("network")
-                .value_name("NETWORK")
-                .help("Specify if running on --testnet or --mainnet")
-                .required(false))
-            .arg(Arg::new("abi")
-                .short('a')
-                .long("abi")
-                .value_name("ABI")
-                .help("Sets the ABI file path")
-                .required(false))
+            .arg(
+                Arg::new("function")
+                    .short('f')
+                    .long("function")
+                    .value_name("FUNCTION")
+                    .help("Sets the function name (e.g., 'exploit')")
+                    .required(true),
+            )
+            .arg(
+                Arg::new("params")
+                    .short('p')
+                    .long("params")
+                    .value_name("PARAMS")
+                    .help("Sets the function parameters (e.g., 'true')")
+                    .required(true),
+            )
+            .arg(
+                Arg::new("conditions")
+                    .short('c')
+                    .long("conditions")
+                    .value_name("CONDITIONS")
+                    .help("Sets the conditions for the exploit (e.g., 'balance > 0')")
+                    .required(true),
+            )
+            .arg(
+                Arg::new("contract-bytecode")
+                    .short('b')
+                    .long("contract-bytecode")
+                    .value_name("BYTECODE_FILE")
+                    .help("Sets the contract bytecode file path")
+                    .required(true)
+                    .value_parser(clap::value_parser!(PathBuf)),
+            )
+            .arg(
+                Arg::new("network")
+                    .short('n')
+                    .long("network")
+                    .value_name("NETWORK")
+                    .help("Specify if running on --testnet or --mainnet")
+                    .required(false),
+            )
+            .arg(
+                Arg::new("abi")
+                    .short('a')
+                    .long("abi")
+                    .value_name("ABI")
+                    .help("Sets the ABI file path")
+                    .required(false),
+            )
             .get_matches()
     }
-
 }
 
 pub mod evm_utils {
+    use hex::FromHexError;
+    use primitive_types::H256;
+    use serde_json;
+    use serde_json::from_str;
+    use serde_json::Value;
+    use std::collections::BTreeMap;
     use std::collections::HashMap;
+    use std::error::Error;
+    use std::fs;
     use std::process::Command as ProcessCommand;
     use std::str;
-    use serde_json::Value;
-    use serde_json;
-    use std::fs;
-    use primitive_types::H256;
-    use std::collections::BTreeMap;
-    use std::error::Error;
-    use serde_json::from_str;
-    use hex::FromHexError;
     /// -------------------------------------------
     /// Executes a cast command and returns the output as a String
     /// -------------------------------------------
@@ -195,7 +203,7 @@ pub mod evm_utils {
         println!("--------------------------------------------------");
         let output = ProcessCommand::new("cast").args(args).output()?;
         if output.status.success() {
-        Ok(str::from_utf8(&output.stdout)?.trim().to_string())
+            Ok(str::from_utf8(&output.stdout)?.trim().to_string())
         } else {
             Err(format!("Command failed: {}", str::from_utf8(&output.stderr)?).into())
         }
@@ -219,13 +227,13 @@ pub mod evm_utils {
     /// -------------------------------------------
     /// Get the storage layout for a given contract
     /// -------------------------------------------
-    fn get_storage_layout(contract_file: &str) -> Result<HashMap<String, usize>, Box<dyn std::error::Error>> {
-        let output = run_solc_command(&[
-            "--storage-layout",  contract_file
-        ])?;
+    fn get_storage_layout(
+        contract_file: &str,
+    ) -> Result<HashMap<String, usize>, Box<dyn std::error::Error>> {
+        let output = run_solc_command(&["--storage-layout", contract_file])?;
 
         // Get the storage layout from the output parsing in json format
-        let storage_layout_start : Vec<&str> = output.split("\n").collect();
+        let storage_layout_start: Vec<&str> = output.split("\n").collect();
         let json_string = storage_layout_start[2];
         let json: Value = from_str(&json_string)?;
         let storage_layout = &json["storage"];
@@ -250,7 +258,7 @@ pub mod evm_utils {
     /// -------------------------------------------
     pub fn get_storage_slots_for_variables(
         contract_file: &str,
-        variables: &HashMap<String, String>
+        variables: &HashMap<String, String>,
     ) -> Result<HashMap<String, usize>, Box<dyn std::error::Error>> {
         let storage_layout = get_storage_layout(contract_file)?;
         let mut result = HashMap::new();
@@ -269,17 +277,23 @@ pub mod evm_utils {
     /// Sends a transaction to a target contract with a given calldata from a caller address
     /// -------------------------------------------
     pub fn send_transaction_with_calldata(
-        target_address: &str, 
-        private_key: &str, 
-        calldata: &str
+        target_address: &str,
+        private_key: &str,
+        calldata: &str,
     ) -> Result<String, Box<dyn std::error::Error>> {
         if calldata.len() < 10 {
             return Err("Invalid calldata format".into());
         }
-        let args = vec!["send",target_address, calldata, "--private-key", private_key];
+        let args = vec![
+            "send",
+            target_address,
+            calldata,
+            "--private-key",
+            private_key,
+        ];
         let output = run_cast_command(&args)?;
         if output.contains("transactionHash") {
-            Ok(output) 
+            Ok(output)
         } else {
             Err(format!("Failed to send transaction: {}", output).into())
         }
@@ -293,25 +307,33 @@ pub mod evm_utils {
         Ok(output.trim().to_string())
     }
 
-
     /// -------------------------------------------
     /// Deploys a smart contract using a given RPC URL and private key
     /// -------------------------------------------
-    pub fn deploy_contract(private_key: &str, bytecode: &str) -> Result<String, Box<dyn std::error::Error>> {
-        let deploy_output = run_cast_command(&["send", "--private-key", private_key, "--create", bytecode])?;
-        
+    pub fn deploy_contract(
+        private_key: &str,
+        bytecode: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let deploy_output =
+            run_cast_command(&["send", "--private-key", private_key, "--create", bytecode])?;
 
         // Just for testing purposes...
-        // Send to the contract address 1 Ether if the deployment was successful to fund the contract 
+        // Send to the contract address 1 Ether if the deployment was successful to fund the contract
         match extract_contract_address(&deploy_output) {
             Some(contract_address) => {
-                let _ = run_cast_command(&["send", &contract_address,"--private-key", private_key,  "--value", "1000000000000000000"])?;
+                let _ = run_cast_command(&[
+                    "send",
+                    &contract_address,
+                    "--private-key",
+                    private_key,
+                    "--value",
+                    "1000000000000000000",
+                ])?;
                 println!("1 Ether sent to contract: {}", contract_address);
                 Ok(deploy_output)
-            },
+            }
             None => Err("Failed to extract contract address from deployment output".into()),
         }
-        
     }
 
     /// -------------------------------------------
@@ -323,9 +345,8 @@ pub mod evm_utils {
         risc0_verifier_contract: &str,
         program_spec_hash: &str,
         context_state_hash: &str,
-        image_id: &str
+        image_id: &str,
     ) -> Result<String, Box<dyn Error>> {
-
         // ABI-encode the constructor parameters to deploy a SC with constructor arguments
         let abi_encoded_params = run_cast_command(&[
             "abi-encode",
@@ -337,8 +358,12 @@ pub mod evm_utils {
         ])?;
         println!("ABI-Encoded Parameters: {:?}", abi_encoded_params);
 
-        // Concatenate the bytecode and ABI-encoded parameters 
-        let full_bytecode = format!("{}{}", bytecode, abi_encoded_params.trim_start_matches("0x"));
+        // Concatenate the bytecode and ABI-encoded parameters
+        let full_bytecode = format!(
+            "{}{}",
+            bytecode,
+            abi_encoded_params.trim_start_matches("0x")
+        );
         println!("Final Contract Bytecode: {:?}", full_bytecode);
 
         let deploy_output = run_cast_command(&[
@@ -375,7 +400,6 @@ pub mod evm_utils {
         Ok(call_output)
     }
 
-
     /// -------------------------------------------
     /// Extracts the contract address from cast output
     /// -------------------------------------------
@@ -395,10 +419,12 @@ pub mod evm_utils {
     /// -------------------------------------------
     /// Populates contract variables from an ABI file
     /// -------------------------------------------
-    pub fn populate_state_variables_from_abi(abi_file_path: std::path::PathBuf) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+    pub fn populate_state_variables_from_abi(
+        abi_file_path: std::path::PathBuf,
+    ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
         let abi_data = fs::read_to_string(abi_file_path)?;
         let abi: Value = serde_json::from_str(&abi_data)?;
-        
+
         let mut state_variables = HashMap::new();
 
         if let Some(types) = abi.as_array() {
@@ -414,7 +440,8 @@ pub mod evm_utils {
                                         if let Some(var_type) = output["type"].as_str() {
                                             // Usa il nome della funzione come nome della variabile di stato
                                             if let Some(name) = item["name"].as_str() {
-                                                state_variables.insert(name.to_string(), var_type.to_string());
+                                                state_variables
+                                                    .insert(name.to_string(), var_type.to_string());
                                             }
                                         }
                                     }
@@ -441,10 +468,12 @@ pub mod evm_utils {
         let block_timestamp = block_details["timestamp"].as_str().unwrap_or("0");
         let block_difficulty = block_details["difficulty"].as_str().unwrap_or("0");
         let block_gas_limit = block_details["gasLimit"].as_str().unwrap_or("0");
-        let block_coinbase = block_details["miner"].as_str().unwrap_or("0x0000000000000000000000000000000000000000");
+        let block_coinbase = block_details["miner"]
+            .as_str()
+            .unwrap_or("0x0000000000000000000000000000000000000000");
         let block_base_fee_per_gas = block_details["baseFeePerGas"].as_str().unwrap_or("0");
         let chain_id = run_cast_command(&["chain-id"])?;
-        
+
         let blockchain_settings = format!(
             r#"{{
                 "gas_price": "{}",
@@ -494,19 +523,26 @@ pub mod evm_utils {
     /// -------------------------------------------
     /// Retrieves the storage value at a given slot for a contract
     /// -------------------------------------------
-    pub fn get_storage_at(contract: &str, slot: &str) -> Result<BTreeMap<H256, H256>, FromHexError> {
-        let output = run_cast_command(&["storage", contract, slot]).map_err(|_| FromHexError::InvalidStringLength)?;
+    pub fn get_storage_at(
+        contract: &str,
+        slot: &str,
+    ) -> Result<BTreeMap<H256, H256>, FromHexError> {
+        let output = run_cast_command(&["storage", contract, slot])
+            .map_err(|_| FromHexError::InvalidStringLength)?;
         println!("Raw output: {:?}", output);
-        
+
         let output_trimmed = output.trim();
 
         // If the output is empty or zero, return an empty map
-        if output_trimmed.is_empty() || output_trimmed == "0x0000000000000000000000000000000000000000000000000000000000000000" {
+        if output_trimmed.is_empty()
+            || output_trimmed
+                == "0x0000000000000000000000000000000000000000000000000000000000000000"
+        {
             return Ok(BTreeMap::new());
         }
 
         // Decode the hexadecimal output
-        let decoded_bytes = hex::decode(output_trimmed.trim_start_matches("0x"))?; 
+        let decoded_bytes = hex::decode(output_trimmed.trim_start_matches("0x"))?;
 
         let value_h256 = H256::from_slice(&decoded_bytes);
         let slot_u64: u64 = slot.parse().unwrap_or(0);
@@ -516,16 +552,14 @@ pub mod evm_utils {
         println!("Value H256: {:?}", value_h256);
 
         let mut storage_map = BTreeMap::new();
-        storage_map.insert(slot_hash, value_h256); 
+        storage_map.insert(slot_hash, value_h256);
 
         Ok(storage_map)
     }
 }
 
-
-
 /////////////////////////////////////////////////////////////////////////////
-                            //EVM-RUNNER MODULES//
+//EVM-RUNNER MODULES//
 /////////////////////////////////////////////////////////////////////////////
 
 pub mod conditions {
@@ -582,11 +616,11 @@ pub mod conditions {
     /// -------------------------------------------
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct RelativeCondition {
-        pub k_s: String,       // State key
-        pub op: Operator,      // Operation
-        pub k_s_prime: String, // End state key
+        pub k_s: String,                          // State key
+        pub op: Operator,                         // Operation
+        pub k_s_prime: String,                    // End state key
         pub value_op: Option<ArithmeticOperator>, // Optional aritmetic operator for the value
-        pub v: Option<U256>,   // Optional value
+        pub v: Option<U256>,                      // Optional value
     }
 
     /// -------------------------------------------
@@ -595,8 +629,8 @@ pub mod conditions {
     /// -------------------------------------------
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct InputDependantFixedCondition {
-        pub k_s: String,  // State key
-        pub op: Operator, // Operation
+        pub k_s: String,   // State key
+        pub op: Operator,  // Operation
         pub input: String, // Input
     }
 
@@ -606,11 +640,11 @@ pub mod conditions {
     /// -------------------------------------------
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct InputDependantRelativeCondition {
-        pub k_s: String,       // State key
-        pub op: Operator,      // Operation
-        pub k_s_prime: String, // End state key
+        pub k_s: String,                  // State key
+        pub op: Operator,                 // Operation
+        pub k_s_prime: String,            // End state key
         pub input_op: ArithmeticOperator, // Arithmetic operation for the value
-        pub input: String,   // Input
+        pub input: String,                // Input
     }
 
     /// -------------------------------------------
@@ -651,11 +685,17 @@ pub mod conditions {
 
         for spec in program_spec {
             let method_id = spec.method_id.as_bytes();
-            let serialized_conditions = (spec.conditions.iter().map(|cond| serialize_condition(cond))).flatten().collect::<Vec<u8>>();
-            let serialized_arguments = (spec.arguments.iter().map(|arg| serialize_argument(arg))).flatten().collect::<Vec<u8>>();
+            let serialized_conditions =
+                (spec.conditions.iter().map(|cond| serialize_condition(cond)))
+                    .flatten()
+                    .collect::<Vec<u8>>();
+            let serialized_arguments = (spec.arguments.iter().map(|arg| serialize_argument(arg)))
+                .flatten()
+                .collect::<Vec<u8>>();
 
             // Concatenate the method_id, serialized_conditions and serialized_arguments
-            let concat_method_spec = [method_id, &serialized_conditions, &serialized_arguments].concat();
+            let concat_method_spec =
+                [method_id, &serialized_conditions, &serialized_arguments].concat();
             hasher.update(&concat_method_spec);
         }
 
@@ -735,7 +775,9 @@ pub mod conditions {
     /// -------------------------------------------
     /// Serializes an input-dependant relative condition into a byte vector
     /// -------------------------------------------
-    fn serialize_input_dependant_relative_condition(cond: &InputDependantRelativeCondition) -> Vec<u8> {
+    fn serialize_input_dependant_relative_condition(
+        cond: &InputDependantRelativeCondition,
+    ) -> Vec<u8> {
         let mut serialized = Vec::new();
 
         serialized.extend(cond.k_s.as_bytes());
@@ -773,8 +815,12 @@ pub mod conditions {
         match cond {
             Condition::Fixed(fixed) => serialize_fixed_condition(fixed),
             Condition::Relative(relative) => serialize_relative_condition(relative),
-            Condition::InputDependantFixedCondition(input_fixed) => serialize_input_dependant_fixed_condition(input_fixed),
-            Condition::InputDependantRelativeCondition(input_relative) => serialize_input_dependant_relative_condition(input_relative),
+            Condition::InputDependantFixedCondition(input_fixed) => {
+                serialize_input_dependant_fixed_condition(input_fixed)
+            }
+            Condition::InputDependantRelativeCondition(input_relative) => {
+                serialize_input_dependant_relative_condition(input_relative)
+            }
         }
     }
 
@@ -858,7 +904,8 @@ pub mod context {
         ERC20,
     }
     const CONTEXT_ERC20_CONTRACT_ADDRESS: &str = "E4C2000000000000000000000000000000000000";
-    const CONTEXT_ERC20_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/ContextTemplateERC20.bin-runtime");
+    const CONTEXT_ERC20_CONTRACT_BYTECODE: &str =
+        include_str!("../../bytecode/ContextTemplateERC20.bin-runtime");
 
     /// -------------------------------------------
     /// Builds account data for a context-specific contract

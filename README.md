@@ -5,17 +5,17 @@
 ## Table of Contents
 
 - [zkpoex](#zkpoex)
-	- [Table of Contents](#table-of-contents)
-	- [Features](#features)
-	- [Prerequisites](#prerequisites)
-	- [Installation](#installation)
-	- [Setup \& Build](#setup--build)
-	- [Usage](#usage)
-		- [Compiling Contracts](#compiling-contracts)
-		- [Running Tests for the EVM Runner](#running-tests-for-the-evm-runner)
-		- [Proving an Exploit](#proving-an-exploit)
-	- [Project Structure](#project-structure)
-	- [License](#license)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Setup \& Build](#setup--build)
+  - [Usage](#usage)
+    - [Compiling Contracts](#compiling-contracts)
+    - [Running Tests for the EVM Runner](#running-tests-for-the-evm-runner)
+    - [Proving an Exploit](#proving-an-exploit)
+  - [Project Structure](#project-structure)
+  - [License](#license)
 
 ## Features
 
@@ -64,6 +64,7 @@ just compile-contract
 ```
 
 This command will:
+
 - Compile `BasicVulnerable.sol` and other contracts. The output is stored in the `bytecode` directory.
 
 ### Running Tests for the EVM Runner

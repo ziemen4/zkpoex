@@ -20,5 +20,5 @@ pragma solidity ^0.8.20;
 
 library ImageID {
     bytes32 public constant ZKPOEX_GUEST_ID =
-        bytes32(0x0279a70e7a20aac958b60330ff47c848614d05771f9df27c9a71dd0de5d807ae);
+        bytes32(0x4a1215a2ce32b100449132a4d43538d1c00360d1673ac40acd0ebdc4879b47b5);
 }

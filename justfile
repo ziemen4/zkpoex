@@ -30,7 +30,7 @@ compile-contract:
          --optimize \
          --overwrite \
          --evm-version shanghai \
-         contracts/src/ContextTemplateERC20.sol > contracts/out/ContextTemplateERC20_layout.json
+         contracts/src/context/ContextTemplateERC20.sol > contracts/out/ContextTemplateERC20_layout.json
 
     @echo "============================================================"
     @echo "✅ Compilation completed successfully!"

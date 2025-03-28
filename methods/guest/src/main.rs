@@ -1,10 +1,10 @@
 extern crate alloc;
 
-use risc0_zkvm::guest::env;
+use alloc::{string::String, vec::Vec};
 use evm_runner::run_evm;
+use risc0_zkvm::guest::env;
 use shared::conditions::Condition;
 use shared::input::AccountData;
-use alloc::{vec::Vec, string::String};
 
 fn main() {
     let start = env::cycle_count();
@@ -36,12 +36,7 @@ fn main() {
     println!("\n------------------------------------------------\n");
 
     // Log input_json
-    let result = run_evm(
-        &calldata, 
-        context_state,
-        program_spec, 
-        &blockchain_settings
-    );
+    let result = run_evm(&calldata, context_state, program_spec, &blockchain_settings);
     env::commit(&result);
 
     let end = env::cycle_count();

@@ -1,11 +1,11 @@
 use evm::backend::Basic;
+use shared::conditions;
 use shared::conditions::ArithmeticOperator;
 use shared::conditions::InputDependantFixedCondition;
 use shared::conditions::InputDependantRelativeCondition;
 use shared::conditions::MethodArgument;
 use shared::conditions::MethodSpec;
 use shared::context;
-use shared::conditions;
 use shared::input::AccountData;
 extern crate alloc;
 extern crate core;
@@ -15,6 +15,8 @@ use core::str::FromStr;
 
 use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use conditions::{Condition, FixedCondition, Operator, RelativeCondition};
+use ethabi::param_type::Reader;
+use ethabi::{ParamType, Token};
 use evm::{
     backend::{Backend, MemoryAccount, MemoryBackend, MemoryVicinity},
     executor::stack::{MemoryStackState, StackExecutor, StackSubstateMetadata},
@@ -27,9 +29,7 @@ use primitive_types::{H160, H256, U256};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::Deserialize;
-use serde_json::from_str;
-use ethabi::{ParamType, Token};
-use ethabi::param_type::Reader;  // Correct parser import
+use serde_json::from_str; // Correct parser import
 
 #[derive(Debug, Deserialize)]
 pub struct DeserializeMemoryVicinity {
@@ -50,14 +50,14 @@ const TARGET_ADDRESS: &str = "7A46E70000000000000000000000000000000000";
 // Address `0xCA11E40000000000000000000000000000000000` is reserved for the `Caller`
 const CALLER_ADDRESS: &str = "CA11E40000000000000000000000000000000000";
 /*
-Arbitrary contracts (ranging through 000 to fff, in total 4096 addresses) are reserved for the prover 
+Arbitrary contracts (ranging through 000 to fff, in total 4096 addresses) are reserved for the prover
 to deploy arbitrary contracts.
 From `0x1000000000000000000000000000000000000000` to `0x1000000000000000000000000000000000000fff`:
 */
 // Instead of defining each arbitrary address, just provide the gap (they are sequential).
-const RESERVED_ARBITRARY_ADDRESSES: (&str,  &str) = (
+const RESERVED_ARBITRARY_ADDRESSES: (&str, &str) = (
     "1000000000000000000000000000000000000000",
-    "1000000000000000000000000000000000000fff"
+    "1000000000000000000000000000000000000fff",
 );
 
 // Address `0xE4C2000000000000000000000000000000000000` is reserved for the `ContextTemplateERC20` contract.
@@ -86,21 +86,24 @@ fn parse_param_type(s: &str) -> Result<ParamType, ethabi::Error> {
 // Full decoder implementation
 pub fn decode_calldata(
     calldata_hex: &str,
-    param_types: &[&str]
+    param_types: &[&str],
 ) -> Result<Vec<Token>, Box<dyn std::error::Error>> {
     let calldata = hex::decode(calldata_hex.trim_start_matches("0x"))?;
     let (_, args_data) = calldata.split_at(4.min(calldata.len()));
-    
+
     let params: Vec<ParamType> = param_types
         .iter()
         .map(|s| parse_param_type(s))
         .collect::<Result<_, _>>()?;
 
-    ethabi::decode(&params, args_data)
-        .map_err(Into::into)
+    ethabi::decode(&params, args_data).map_err(Into::into)
 }
 
-fn check_condition_op<T: PartialOrd + std::fmt::Debug>(operator: &Operator, first_val: T, second_val: T) -> bool {
+fn check_condition_op<T: PartialOrd + std::fmt::Debug>(
+    operator: &Operator,
+    first_val: T,
+    second_val: T,
+) -> bool {
     println!("FIRST VAL: {:?}", first_val);
     println!("SECOND VAL: {:?}", second_val);
     println!("OPERATOR: {:?}", operator);
@@ -115,8 +118,18 @@ fn check_condition_op<T: PartialOrd + std::fmt::Debug>(operator: &Operator, firs
 }
 
 fn execute_condition_op<
-    T: PartialOrd + std::fmt::Debug + std::ops::Add<Output = T> + std::ops::Sub<Output = T> + std::ops::Mul<Output = T> + std::ops::Div<Output = T> + std::ops::Rem<Output = T>,
->(operator: &ArithmeticOperator, first_val: T, second_val: T) -> T {
+    T: PartialOrd
+        + std::fmt::Debug
+        + std::ops::Add<Output = T>
+        + std::ops::Sub<Output = T>
+        + std::ops::Mul<Output = T>
+        + std::ops::Div<Output = T>
+        + std::ops::Rem<Output = T>,
+>(
+    operator: &ArithmeticOperator,
+    first_val: T,
+    second_val: T,
+) -> T {
     match operator {
         ArithmeticOperator::Add => first_val + second_val,
         ArithmeticOperator::Sub => first_val - second_val,
@@ -126,10 +139,7 @@ fn execute_condition_op<
     }
 }
 
-fn get_account_from_state(
-    state: &MemoryStackState<MemoryBackend>,
-    address: H160,
-) -> Basic {
+fn get_account_from_state(state: &MemoryStackState<MemoryBackend>, address: H160) -> Basic {
     // If account does not exist, panic
     if !state.exists(address) {
         panic!("Account does not exist: {}", address);
@@ -139,10 +149,7 @@ fn get_account_from_state(
     state.basic(address)
 }
 
-fn get_state_value(
-    state: &MemoryStackState<MemoryBackend>,
-    state_key: Vec<&str>
-) -> U256 {
+fn get_state_value(state: &MemoryStackState<MemoryBackend>, state_key: Vec<&str>) -> U256 {
     let address = H160::from_str(state_key[0]).unwrap();
     let account = get_account_from_state(state, address);
 
@@ -160,8 +167,8 @@ fn get_state_value(
         // If the state key vector has length 3, then we expect a format like: <account_address>.storage.<storage_key>
         let storage_key = H256::from_str(state_key[2]).unwrap();
         let storage_value = state.storage(address, storage_key);
-       
-       // TODO: Support non numeric values
+
+        // TODO: Support non numeric values
         U256::from_big_endian(&storage_value[..])
     } else {
         panic!("Invalid state key format");
@@ -171,10 +178,17 @@ fn get_state_value(
 fn get_input_value(
     calldata: &str,
     method_arguments: Vec<MethodArgument>,
-    method_name: String
+    method_name: String,
 ) -> U256 {
     // Use decode_calldata to obtain the values for the arguments
-    let decoded = decode_calldata(calldata, &method_arguments.iter().map(|arg| &arg.argument_type[..]).collect::<Vec<&str>>()).unwrap();
+    let decoded = decode_calldata(
+        calldata,
+        &method_arguments
+            .iter()
+            .map(|arg| &arg.argument_type[..])
+            .collect::<Vec<&str>>(),
+    )
+    .unwrap();
 
     // If the decoded arguments are empty, panic
     if decoded.is_empty() {
@@ -182,7 +196,10 @@ fn get_input_value(
     }
 
     // If the decoded arguments are not all U256, panic
-    if !decoded.iter().all(|arg| matches!(arg, ethabi::Token::Uint(_))) {
+    if !decoded
+        .iter()
+        .all(|arg| matches!(arg, ethabi::Token::Uint(_)))
+    {
         panic!("Not all arguments are U256");
     }
 
@@ -239,11 +256,7 @@ fn check_fixed_condition(
     let state_key = fixed_condition.k_s.split('.').collect::<Vec<&str>>();
     let value = get_state_value(state, state_key);
 
-    check_condition_op(
-        &fixed_condition.op,
-        value,
-        fixed_condition.v,
-    )
+    check_condition_op(&fixed_condition.op, value, fixed_condition.v)
 }
 
 fn check_input_dependant_fixed_condition(
@@ -252,16 +265,19 @@ fn check_input_dependant_fixed_condition(
     calldata: &str,
     method_arguments: Vec<MethodArgument>,
 ) -> bool {
-        // The state key is joined by '.', so split it
-        let state_key = input_dependant_fixed_condition.k_s.split('.').collect::<Vec<&str>>();
-        let value = get_state_value(state, state_key);
-        let input_value = get_input_value(calldata, method_arguments, input_dependant_fixed_condition.input.clone());
-    
-        check_condition_op(
-            &input_dependant_fixed_condition.op,
-            value,
-            input_value,
-        )
+    // The state key is joined by '.', so split it
+    let state_key = input_dependant_fixed_condition
+        .k_s
+        .split('.')
+        .collect::<Vec<&str>>();
+    let value = get_state_value(state, state_key);
+    let input_value = get_input_value(
+        calldata,
+        method_arguments,
+        input_dependant_fixed_condition.input.clone(),
+    );
+
+    check_condition_op(&input_dependant_fixed_condition.op, value, input_value)
 }
 
 fn check_input_dependant_relative_condition(
@@ -271,7 +287,10 @@ fn check_input_dependant_relative_condition(
     method_arguments: Vec<MethodArgument>,
 ) -> bool {
     // Pre state key is joined by '.', so split it
-    let pre_state_key = input_dependant_relative_condition.k_s.split('.').collect::<Vec<&str>>();
+    let pre_state_key = input_dependant_relative_condition
+        .k_s
+        .split('.')
+        .collect::<Vec<&str>>();
 
     // Post state key is joined by '.', so split it
     let post_state_key = input_dependant_relative_condition
@@ -282,10 +301,22 @@ fn check_input_dependant_relative_condition(
     let pre_state_value = get_state_value(state, pre_state_key);
     let post_state_value = get_state_value(state, post_state_key);
 
-    let input_value = get_input_value(calldata, method_arguments, input_dependant_relative_condition.input.clone());
-    let second_val = execute_condition_op(&input_dependant_relative_condition.input_op, post_state_value, input_value);
+    let input_value = get_input_value(
+        calldata,
+        method_arguments,
+        input_dependant_relative_condition.input.clone(),
+    );
+    let second_val = execute_condition_op(
+        &input_dependant_relative_condition.input_op,
+        post_state_value,
+        input_value,
+    );
 
-    check_condition_op(&input_dependant_relative_condition.op, pre_state_value, second_val)
+    check_condition_op(
+        &input_dependant_relative_condition.op,
+        pre_state_value,
+        second_val,
+    )
 }
 
 fn from_deserialized_vicinity(deserialized_vicinity: DeserializeMemoryVicinity) -> MemoryVicinity {
@@ -326,7 +357,10 @@ fn build_global_state(
     }
 }
 
-fn filter_program_spec(program_spec: &Vec<MethodSpec>, method_id: &str) -> (Vec<Condition>, Vec<MethodArgument>){
+fn filter_program_spec(
+    program_spec: &Vec<MethodSpec>,
+    method_id: &str,
+) -> (Vec<Condition>, Vec<MethodArgument>) {
     // TODO: Improve by only iterating once
     // Obtain the method spec for the given method_id and return its conditions
     let conditions = program_spec
@@ -356,10 +390,7 @@ fn filter_program_spec(program_spec: &Vec<MethodSpec>, method_id: &str) -> (Vec<
     (conditions, arguments)
 }
 
-fn verify_pre_state(
-    state: &MemoryStackState<MemoryBackend>,
-    program_spec: &Vec<MethodSpec>
-) {
+fn verify_pre_state(state: &MemoryStackState<MemoryBackend>, program_spec: &Vec<MethodSpec>) {
     for method_spec in program_spec {
         let conditions = &method_spec.conditions;
         for condition in conditions {
@@ -391,7 +422,7 @@ fn prove_final_state(
 ) -> bool {
     let mut exit_succeed = false;
     let (method_conditions, method_arguments) = filter_program_spec(&program_spec, &calldata[..8]);
-    
+
     // First check if there is an exploit
     for condition in method_conditions {
         match condition {
@@ -414,10 +445,10 @@ fn prove_final_state(
             }
             Condition::InputDependantFixedCondition(condition) => {
                 let result = check_input_dependant_fixed_condition(
-                    &post_state, 
+                    &post_state,
                     &condition,
                     &calldata,
-                    method_arguments.clone()
+                    method_arguments.clone(),
                 );
                 if !result {
                     println!("Input dependant fixed condition failed: {:?}", condition);
@@ -427,10 +458,10 @@ fn prove_final_state(
             }
             Condition::InputDependantRelativeCondition(condition) => {
                 let result = check_input_dependant_relative_condition(
-                    &post_state, 
+                    &post_state,
                     &condition,
                     &calldata,
-                    method_arguments.clone()
+                    method_arguments.clone(),
                 );
                 if !result {
                     println!("Input dependant relative condition failed: {:?}", condition);
@@ -462,12 +493,12 @@ pub fn run_evm(
     calldata: &str,
     context_state: Vec<AccountData>,
     program_spec: Vec<MethodSpec>,
-    blockchain_settings: &str
+    blockchain_settings: &str,
 ) -> Vec<String> {
     // 0. Preliminaries
     // 0.1 Initialize the EVM config
     let config = Config::cancun();
-    
+
     // Deserialize vicinity
     let deserialize_vicinity: DeserializeMemoryVicinity = from_str(blockchain_settings).unwrap();
     let vicinity: MemoryVicinity = from_deserialized_vicinity(deserialize_vicinity);
@@ -480,17 +511,21 @@ pub fn run_evm(
     // 0.2 Pre-checks
     assert!(caller_data.address == CALLER_ADDRESS);
     assert!(target_data.address == TARGET_ADDRESS);
-    
+
     // TODO: Alternatively, if this is too costly, we could allow the program spec
     //       to specify "any()" as the address, and have the prover just show that some address
     //       satisfies the condition.
-    let lower_bound_reserved_address: U256 = U256::from_str(&RESERVED_ARBITRARY_ADDRESSES.0[2..]).unwrap();
-    let upper_bound_reserved_address: U256 = U256::from_str(&RESERVED_ARBITRARY_ADDRESSES.1[2..]).unwrap();
+    let lower_bound_reserved_address: U256 =
+        U256::from_str(&RESERVED_ARBITRARY_ADDRESSES.0[2..]).unwrap();
+    let upper_bound_reserved_address: U256 =
+        U256::from_str(&RESERVED_ARBITRARY_ADDRESSES.1[2..]).unwrap();
 
     for account_data in context_state.clone() {
         let account_address = H160::from_str(&account_data.address).unwrap();
         let account_address_int = U256::from_big_endian(&account_address[..]);
-        if account_address_int >= lower_bound_reserved_address || account_address_int <= upper_bound_reserved_address {
+        if account_address_int >= lower_bound_reserved_address
+            || account_address_int <= upper_bound_reserved_address
+        {
             continue;
         }
         assert!(!RESERVED_TEMPLATE_ADDRESSES.contains(&account_data.address.as_str()));
@@ -501,22 +536,15 @@ pub fn run_evm(
     let mut global_state: BTreeMap<H160, MemoryAccount> = BTreeMap::new();
     build_global_state(&mut global_state, &context_state);
     let mut backend = MemoryBackend::new(&vicinity, global_state);
-    let pre_state = build_memory_stack_state(
-        &context_state,
-        &config,
-        &mut backend,
-    );
+    let pre_state = build_memory_stack_state(&context_state, &config, &mut backend);
 
     // 1.1 Create a snapshot of the pre state for further use
     // TOOD: See if there is a better way to avoid cloning the global state from scratch
     let mut snapshot_global_state: BTreeMap<H160, MemoryAccount> = BTreeMap::new();
     build_global_state(&mut snapshot_global_state, &context_state);
     let mut snapshot_backend = MemoryBackend::new(&vicinity, snapshot_global_state);
-    let pre_state_snapshot = build_memory_stack_state(
-        &context_state,
-        &config,
-        &mut snapshot_backend,
-    );
+    let pre_state_snapshot =
+        build_memory_stack_state(&context_state, &config, &mut snapshot_backend);
 
     // 2. Prove that the initial state is valid wrt the program specification
     // 2.1 Verify that the program specification is valid
@@ -541,13 +569,17 @@ pub fn run_evm(
     );
     println!("Exit reason: {:?}", exit_reason);
 
-    assert!(matches!(exit_reason, ExitReason::Succeed(ExitSucceed::Stopped) | ExitReason::Succeed(ExitSucceed::Returned)));
-    
+    assert!(matches!(
+        exit_reason,
+        ExitReason::Succeed(ExitSucceed::Stopped) | ExitReason::Succeed(ExitSucceed::Returned)
+    ));
+
     // 4. Prove that the final state is invalid wrt the program specification
     let post_state = executor.state();
 
     // 4.1 Depending on the returning boolean value, we can determine if an exploit was found
-    let exploit_found = prove_final_state(&pre_state_snapshot, &post_state, &program_spec, calldata);
+    let exploit_found =
+        prove_final_state(&pre_state_snapshot, &post_state, &program_spec, calldata);
 
     println!("Exploit found: {:?}", exploit_found);
 
@@ -585,8 +617,10 @@ mod tests {
     use context::{build_context_account_data, ContextAccountDataType};
     use shared::conditions::{compute_storage_key, MethodArgument, MethodSpec};
 
-    pub const BASIC_VULNERABLE_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/BasicVulnerable.bin-runtime");
-    pub const OUFLOW_CONTRACT_BYTECODE: &str = include_str!("../../bytecode/OverUnderFlowVulnerable.bin-runtime");
+    pub const BASIC_VULNERABLE_CONTRACT_BYTECODE: &str =
+        include_str!("../../bytecode/BasicVulnerable.bin-runtime");
+    pub const OUFLOW_CONTRACT_BYTECODE: &str =
+        include_str!("../../bytecode/OverUnderFlowVulnerable.bin-runtime");
 
     #[test]
     fn evm_find_new_exploit_target_contract_works() {
@@ -616,20 +650,16 @@ mod tests {
             // Arguments are the arguments that the method takes
             MethodSpec {
                 method_id: "16112c6c".to_string(),
-                conditions: vec![
-                    Condition::Fixed(FixedCondition {
-                        k_s: "7A46E70000000000000000000000000000000000.balance".to_string(),
-                        op: Operator::Gt,
-                        v: U256::from_dec_str("0").unwrap(),
-                    }),
-                ],
-                arguments: vec![
-                    MethodArgument {
-                        argument_type: "bool".to_string(),
-                        argument_name: "_exploit".to_string(),
-                    },
-                ]
-            }
+                conditions: vec![Condition::Fixed(FixedCondition {
+                    k_s: "7A46E70000000000000000000000000000000000.balance".to_string(),
+                    op: Operator::Gt,
+                    v: U256::from_dec_str("0").unwrap(),
+                })],
+                arguments: vec![MethodArgument {
+                    argument_type: "bool".to_string(),
+                    argument_name: "_exploit".to_string(),
+                }],
+            },
         ];
         let context_state = vec![
             AccountData {
@@ -639,7 +669,7 @@ mod tests {
                 storage: BTreeMap::new(),
                 code: hex::decode(BASIC_VULNERABLE_CONTRACT_BYTECODE).unwrap(),
             },
-			AccountData {
+            AccountData {
                 address: "CA11E40000000000000000000000000000000000".to_string(),
                 nonce: U256::one(),
                 balance: U256::from_dec_str("10000000000000000000").unwrap(),
@@ -667,7 +697,6 @@ mod tests {
         assert_eq!(result[3], prover_address.to_string());
     }
 
-    
     #[test]
     fn evm_find_new_exploit_target_contract_erc20_works() {
         /*
@@ -717,23 +746,19 @@ mod tests {
             // Arguments are the arguments that the method takes
             MethodSpec {
                 method_id: "d92dbd19".to_string(),
-                conditions: vec![
-                    Condition::Fixed(
-                        // TODO: Fix this, see https://chatgpt.com/share/67b111b2-313c-800e-9131-e08bc93175bb
-                        FixedCondition {
-                            k_s: state_path,
-                            op: Operator::Gt,
-                            v: U256::from_dec_str("0").unwrap(),
-                        },
-                    ),
-                ],
-                arguments: vec![
-                    MethodArgument {
-                        argument_type: "bool".to_string(),
-                        argument_name: "_exploit".to_string(),
-                    }
-                ]
-            }
+                conditions: vec![Condition::Fixed(
+                    // TODO: Fix this, see https://chatgpt.com/share/67b111b2-313c-800e-9131-e08bc93175bb
+                    FixedCondition {
+                        k_s: state_path,
+                        op: Operator::Gt,
+                        v: U256::from_dec_str("0").unwrap(),
+                    },
+                )],
+                arguments: vec![MethodArgument {
+                    argument_type: "bool".to_string(),
+                    argument_name: "_exploit".to_string(),
+                }],
+            },
         ];
 
         let context_state = vec![
@@ -744,7 +769,7 @@ mod tests {
                 storage: BTreeMap::new(),
                 code: hex::decode(BASIC_VULNERABLE_CONTRACT_BYTECODE).unwrap(),
             },
-			AccountData {
+            AccountData {
                 address: "CA11E40000000000000000000000000000000000".to_string(),
                 nonce: U256::one(),
                 balance: U256::from_dec_str("10000000000000000000").unwrap(),
@@ -819,15 +844,13 @@ mod tests {
                         v: U256::from_dec_str("115792089237316195423570985008687907853269984665640564039457584007913129639935").unwrap(), //maximum representable value of uint256
                     }),
                 ],
-                arguments: vec![
-                    MethodArgument {
-                        argument_type: "uint256".to_string(),
-                        argument_name: "amount".to_string(),
-                    }
-                ]
-            }
+                arguments: vec![MethodArgument {
+                    argument_type: "uint256".to_string(),
+                    argument_name: "amount".to_string(),
+                }],
+            },
         ];
-        
+
         let context_state = vec![
             AccountData {
                 address: "7A46E70000000000000000000000000000000000".to_string(),
@@ -836,7 +859,7 @@ mod tests {
                 storage: over_underflow_init_storage,
                 code: hex::decode(OUFLOW_CONTRACT_BYTECODE).unwrap(),
             },
-			AccountData {
+            AccountData {
                 address: "CA11E40000000000000000000000000000000000".to_string(),
                 nonce: U256::one(),
                 balance: U256::from_dec_str("10000000000000000000").unwrap(),
