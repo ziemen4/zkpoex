@@ -56,15 +56,14 @@ deploy-verifier network: compile-contract
       cargo run --release -p sc-owner -- --no-capture   \
     '
 
-prove function params conditions contract_bytecode network abi: compile-contract
+prove function params context_state program_spec network: compile-contract
     @echo "============================================================"
-    @echo "🚀 Starting exploit local proving (dev mode: true):"
+    @echo "🚀 Starting exploit remote proving using Bonsai:"
     @echo "  - Function: {{function}}"
     @echo "  - Params: {{params}}"
-    @echo "  - Conditions: {{conditions}}"
-    @echo "  - Contract Bytecode: {{contract_bytecode}}"
+    @echo "  - Context State: {{context_state}}"
+    @echo "  - Program Specification: {{program_spec}}"
     @echo "  - Network: {{network}}"
-    @echo "  - ABI: {{abi}}"
     @echo "============================================================"
     
     RISC0_DEV_MODE=true RUST_LOG=full RUST_BACKTRACE=1 \
@@ -88,25 +87,22 @@ prove function params conditions contract_bytecode network abi: compile-contract
       cargo run --release -p host -- \
         --function "{{function}}" \
         --params "{{params}}" \
-        --conditions "{{conditions}}" \
-        --contract-bytecode "{{contract_bytecode}}" \
-        --network "{{network}}" \
-        --abi "{{abi}}" \
+        --context-state "{{context_state}}" \
+        --program-spec "{{program_spec}}" \
     '
 
     @echo "============================================================"
     @echo "✅ Exploit verified successfully!"
     @echo "============================================================"
 
-prove-bonsai function params conditions contract_bytecode network abi: compile-contract
+prove-bonsai function params context_state program_spec network: compile-contract
     @echo "============================================================"
     @echo "🚀 Starting exploit remote proving using Bonsai:"
     @echo "  - Function: {{function}}"
     @echo "  - Params: {{params}}"
-    @echo "  - Conditions: {{conditions}}"
-    @echo "  - Contract Bytecode: {{contract_bytecode}}"
+    @echo "  - Context State: {{context_state}}"
+    @echo "  - Program Specification: {{program_spec}}"
     @echo "  - Network: {{network}}"
-    @echo "  - ABI: {{abi}}"
     @echo "============================================================"
 
     RISC0_DEV_MODE=false RUST_LOG=full RUST_BACKTRACE=1 \
@@ -128,13 +124,11 @@ prove-bonsai function params conditions contract_bytecode network abi: compile-c
         export ETH_RPC_URL=""; \
       fi; \
       echo "ETH_RPC_URL: $ETH_RPC_URL"; \
-      cargo run --release -p host -- \
+      RUST_BACKTRACE=1 cargo run --release -p host -- \
         --function "{{function}}" \
         --params "{{params}}" \
-        --conditions "{{conditions}}" \
-        --contract-bytecode "{{contract_bytecode}}" \
-        --network "{{network}}" \
-        --abi "{{abi}}" \
+        --context-state "{{context_state}}" \
+        --program-spec "{{program_spec}}" \
     '
 
     @echo "============================================================"

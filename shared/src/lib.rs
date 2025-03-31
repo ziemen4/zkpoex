@@ -127,7 +127,7 @@ pub mod utils {
     pub fn parse_cli_args() -> clap::ArgMatches {
         Command::new("zkpoex-cli")
             .version("1.0")
-            .author("Your Name <your.email@example.com>")
+            .author("Ziemann, Alessandro")
             .about("Generates zk proofs for Ethereum smart contract exploits")
             .arg(
                 Arg::new("function")
@@ -146,37 +146,22 @@ pub mod utils {
                     .required(true),
             )
             .arg(
-                Arg::new("conditions")
+                Arg::new("context-state")
                     .short('c')
-                    .long("conditions")
-                    .value_name("CONDITIONS")
-                    .help("Sets the conditions for the exploit (e.g., 'balance > 0')")
-                    .required(true),
-            )
-            .arg(
-                Arg::new("contract-bytecode")
-                    .short('b')
-                    .long("contract-bytecode")
-                    .value_name("BYTECODE_FILE")
-                    .help("Sets the contract bytecode file path")
+                    .long("context-state")
+                    .value_name("CONTEXT_STATE")
+                    .help("Sets the context state file path containing the state data")
                     .required(true)
                     .value_parser(clap::value_parser!(PathBuf)),
             )
             .arg(
-                Arg::new("network")
-                    .short('n')
-                    .long("network")
-                    .value_name("NETWORK")
-                    .help("Specify if running on --testnet or --mainnet")
-                    .required(false),
-            )
-            .arg(
-                Arg::new("abi")
-                    .short('a')
-                    .long("abi")
-                    .value_name("ABI")
-                    .help("Sets the ABI file path")
-                    .required(false),
+                Arg::new("program-spec")
+                    .short('p')
+                    .long("program-spec")
+                    .value_name("PROGRAM_SPEC")
+                    .help("Sets the program spec file path containing the method specifications")
+                    .required(true)
+                    .value_parser(clap::value_parser!(PathBuf)),
             )
             .get_matches()
     }
@@ -877,16 +862,57 @@ pub mod input {
     use alloc::vec::Vec;
     use primitive_types::{H256, U256};
     use serde::{Deserialize, Serialize};
+    use serde::de::{self, Deserializer};
+    use std::str::FromStr;
+
     /// -------------------------------------------
     /// Represents the data of an Ethereum account
     /// -------------------------------------------
     #[derive(Serialize, Deserialize, Debug, Clone)]
+    #[serde(deny_unknown_fields)]
     pub struct AccountData {
         pub address: String,
+        #[serde(deserialize_with = "deserialize_u256")]
         pub nonce: U256,
+        #[serde(deserialize_with = "deserialize_u256")]
         pub balance: U256,
+        #[serde(deserialize_with = "deserialize_storage")]
         pub storage: BTreeMap<H256, H256>,
+        #[serde(deserialize_with = "deserialize_code")]
         pub code: Vec<u8>,
+    }
+
+    // Custom deserialization for U256
+    fn deserialize_u256<'de, D>(deserializer: D) -> Result<U256, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        U256::from_dec_str(s).map_err(de::Error::custom)
+    }
+
+    // Custom deserialization for storage (BTreeMap<H256, H256>)
+    fn deserialize_storage<'de, D>(deserializer: D) -> Result<BTreeMap<H256, H256>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let map: BTreeMap<String, String> = Deserialize::deserialize(deserializer)?;
+        map.into_iter()
+            .map(|(k, v)| {
+                let key = H256::from_str(&k).map_err(de::Error::custom)?;
+                let value = H256::from_str(&v).map_err(de::Error::custom)?;
+                Ok((key, value))
+            })
+            .collect()
+    }
+
+    // Custom deserialization for code (Vec<u8>)
+    fn deserialize_code<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        hex::decode(s).map_err(de::Error::custom)
     }
 }
 

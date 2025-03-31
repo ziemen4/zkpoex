@@ -4,15 +4,13 @@ use methods::{ZKPOEX_GUEST_ELF, ZKPOEX_GUEST_ID};
 
 use bytemuck::cast_slice;
 use dotenv::dotenv;
-use primitive_types::U256;
 use risc0_zkvm::{default_prover, ExecutorEnv, InnerReceipt, SuccinctReceipt};
 use serde::Serialize;
 use serde_json;
+use shared::conditions::MethodSpec;
 use shared::evm_utils;
 use shared::input::AccountData;
 use shared::utils;
-use std::collections::BTreeMap;
-use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
@@ -34,7 +32,7 @@ fn save_bytes32(filename: &str, data: &[u8]) -> std::io::Result<()> {
 struct InputData<'a> {
     calldata: &'a str,
     context_state: Vec<AccountData>,
-    program_spec: String,
+    program_spec: Vec<MethodSpec>,
     blockchain_settings: String,
 }
 
@@ -52,30 +50,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let function_name = matches.get_one::<String>("function").unwrap();
     let params = matches.get_one::<String>("params").unwrap();
-    let conditions = matches.get_one::<String>("conditions").unwrap();
     let context_state_file = matches
         .get_one::<std::path::PathBuf>("context-state")
         .unwrap();
-    let abi_file = <std::path::PathBuf>::from(matches.get_one::<String>("abi").unwrap());
     let program_spec_file = matches
         .get_one::<std::path::PathBuf>("program-spec")
         .unwrap();
     let blockchain_settings = evm_utils::get_blockchain_settings().await?;
 
     // Read the contract bytecode file and generate the calldata dynamically
-    let contract_bytecode_deployment =
-        fs::read_to_string(contract_bytecode_file).expect("Failed to read contract bytecode file");
     let calldata = utils::generate_function_signature(function_name, &[params]);
-
     println!("Calldata: {}", calldata);
 
     // Read the context state and program specification files
-    let context_state_json = fs::read_to_string(context_state_file).expect("Failed to read file");
-    let context_state: Vec<AccountData> = serde_json::from_str(&context_state_json)?;
+    let context_state_json = fs::read_to_string(context_state_file)
+        .map_err(|e| format!("Failed to read context state file: {}", e))?;
 
+    let context_state: Vec<AccountData> = serde_json::from_str(&context_state_json)
+        .map_err(|e| format!("Failed to parse context state JSON: {}", e))?;
+    println!("Context state: {:?}", context_state);
+    
     let program_spec_json = fs::read_to_string(program_spec_file).expect("Failed to read file");
-    let program_spec: BTreeMap<String, serde_json::Value> =
-        serde_json::from_str(&program_spec_json)?;
+    let program_spec: Vec<MethodSpec> = serde_json::from_str(&program_spec_json)?;
 
     // Construct the input data
     let input = InputData {
@@ -86,7 +82,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     println!("Sending input to guest: {:?}", input);
-
     let env = ExecutorEnv::builder()
         .write(&input)
         .unwrap()

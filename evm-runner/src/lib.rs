@@ -747,7 +747,6 @@ mod tests {
             MethodSpec {
                 method_id: "d92dbd19".to_string(),
                 conditions: vec![Condition::Fixed(
-                    // TODO: Fix this, see https://chatgpt.com/share/67b111b2-313c-800e-9131-e08bc93175bb
                     FixedCondition {
                         k_s: state_path,
                         op: Operator::Gt,
