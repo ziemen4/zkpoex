@@ -6,10 +6,7 @@ use bytemuck::cast_slice;
 use dotenv::dotenv;
 use risc0_zkvm::{default_prover, ExecutorEnv, InnerReceipt, SuccinctReceipt};
 use serde::Serialize;
-use serde_json;
-use shared::conditions::MethodSpec;
 use shared::evm_utils;
-use shared::input::AccountData;
 use shared::utils;
 use std::fs;
 use std::fs::File;
@@ -31,8 +28,8 @@ fn save_bytes32(filename: &str, data: &[u8]) -> std::io::Result<()> {
 #[derive(Serialize, Debug)]
 struct InputData<'a> {
     calldata: &'a str,
-    context_state: Vec<AccountData>,
-    program_spec: Vec<MethodSpec>,
+    context_state: String,
+    program_spec: String,
     blockchain_settings: String,
 }
 
@@ -63,15 +60,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Calldata: {}", calldata);
 
     // Read the context state and program specification files
-    let context_state_json = fs::read_to_string(context_state_file)
+    let context_state = fs::read_to_string(context_state_file)
         .map_err(|e| format!("Failed to read context state file: {}", e))?;
-
-    let context_state: Vec<AccountData> = serde_json::from_str(&context_state_json)
-        .map_err(|e| format!("Failed to parse context state JSON: {}", e))?;
     println!("Context state: {:?}", context_state);
     
-    let program_spec_json = fs::read_to_string(program_spec_file).expect("Failed to read file");
-    let program_spec: Vec<MethodSpec> = serde_json::from_str(&program_spec_json)?;
+    let program_spec = fs::read_to_string(program_spec_file).expect("Failed to read file");
+    println!("Program spec: {:?}", program_spec);
 
     // Construct the input data
     let input = InputData {

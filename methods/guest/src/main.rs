@@ -14,19 +14,24 @@ fn main() {
     println!("{:?}", calldata);
     println!("\n------------------------------------------------\n");
 
-    let context_state: Vec<AccountData> = env::read();
-    println!("\n------------- GUEST: CONTEXT STATE -------------\n");
-    println!("{:?}", context_state);
-    println!("\n------------------------------------------------\n");
-
-    let program_spec: Vec<MethodSpec> = env::read();
-    println!("\n------------- GUEST: PROGRAM SPEC -------------\n");
-    println!("{:?}", program_spec);
-    println!("\n------------------------------------------------\n");
+    let _context_state: String = env::read();
+    let _program_spec: String = env::read();
 
     let blockchain_settings: String = env::read();
     println!("\n------------- GUEST: BLOCKCHAIN SETTINGS -------------\n");
     println!("{:?}", blockchain_settings);
+    println!("\n------------------------------------------------\n");
+
+    // Deserialize context state
+    let context_state: Vec<AccountData> = serde_json::from_str(&_context_state).unwrap();
+    println!("\n------------- GUEST: CONTEXT STATE -------------\n");
+    println!("{:?}", context_state);
+    println!("\n------------------------------------------------\n");
+
+    // Deserialize program spec
+    let program_spec: Vec<MethodSpec> = serde_json::from_str(&_program_spec).unwrap();
+    println!("\n------------- GUEST: PROGRAM SPEC -------------\n");
+    println!("{:?}", program_spec);
     println!("\n------------------------------------------------\n");
 
     // Log input_json

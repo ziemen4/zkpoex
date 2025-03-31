@@ -66,7 +66,7 @@ prove function params context_state program_spec network: compile-contract
     @echo "  - Network: {{network}}"
     @echo "============================================================"
     
-    RISC0_DEV_MODE=true RUST_LOG=full RUST_BACKTRACE=1 \
+    RISC0_DEV_MODE=1 RUST_LOG=full RISC0_INFO=1 RUST_BACKTRACE=1 \
 
     # Set up the ETH_RPC_URL based on the network and run the cargo command
     sh -c ' \
@@ -105,7 +105,7 @@ prove-bonsai function params context_state program_spec network: compile-contrac
     @echo "  - Network: {{network}}"
     @echo "============================================================"
 
-    RISC0_DEV_MODE=false RUST_LOG=full RUST_BACKTRACE=1 \
+    RISC0_DEV_MODE=0 RUST_LOG=full RUST_BACKTRACE=1 \
     BONSAI_API_KEY=J8ZXydQGyGMWvK8BVXa92Juxi0u2eZl8MpH0v632 BONSAI_API_URL=https://api.bonsai.xyz/ \
     
     # Set up the ETH_RPC_URL based on the network and run the cargo command
