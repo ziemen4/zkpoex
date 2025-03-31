@@ -30,8 +30,8 @@ fn main() {
     println!("\n------------------------------------------------\n");
 
     // Log input_json
-    // let result = run_evm(&calldata, context_state, program_spec, &blockchain_settings);
-    // env::commit(&result);
+    let result = run_evm(&calldata, context_state, program_spec, &blockchain_settings);
+    env::commit(&result);
 
     let end = env::cycle_count();
     eprintln!("my_operation_to_measure: {}", end - start);
