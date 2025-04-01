@@ -6,7 +6,7 @@ edition = "2021"
 [workspace]
 
 [dependencies]
-risc0-zkvm = { version = "1.2.1", default-features = false, features = ['std'] }
+risc0-zkvm = { version = "2.0.0", default-features = false, features = ['std'] }
 evm-runner = { path = "../../evm-runner" }
 shared = { path = "../../shared" }
 serde = { version = "1.0", features = ["derive"] }
