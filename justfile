@@ -13,13 +13,13 @@ compile-contract:
 	solc-select install 0.8.20 && \
 	solc-select use 0.8.20 && \
 	find contracts/src/ -type f -name '*.sol' -exec solc --abi \
-        --bin \
-        --bin-runtime \
-        --optimize \
-        --overwrite \
-        --evm-version shanghai \
-        --output-dir bytecode \
-        {} \;
+		--bin \
+		--bin-runtime \
+		--optimize \
+		--overwrite \
+		--evm-version shanghai \
+		--output-dir bytecode \
+		{} \;
 
 	solc --storage-layout --optimize --overwrite --evm-version shanghai contracts/src/context/ContextTemplateERC20.sol > contracts/out/ContextTemplateERC20_layout.json
 

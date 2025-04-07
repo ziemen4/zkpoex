@@ -1,0 +1,20 @@
+[
+    {
+        "method_id": "c792413f",
+        "conditions": [
+            {
+                "InputDependantFixedCondition": {
+                    "k_s": "7A46E70000000000000000000000000000000000.balance",
+                    "op": "Gt",
+                    "input": "amount"
+                }
+            }
+        ],
+        "arguments": [
+            {
+                "argument_type": "uint256",
+                "argument_name": "amount"
+            }
+        ]
+    }
+]

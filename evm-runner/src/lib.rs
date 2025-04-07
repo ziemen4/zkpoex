@@ -885,4 +885,60 @@ mod tests {
         let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
         assert_eq!(result[3], prover_address.to_string());
     }
+
+    #[test]
+    fn evm_find_new_exploit_over_reentrancy_attack_works() {
+        let calldata = "c792413f0000000000000000000000000000000000000000000000000000000000000001"; // startAttack(1) ->  Start reentrancy 
+        let blockchain_settings = r#"
+        {
+			"gas_price": "0",
+			"origin": "0x0000000000000000000000000000000000000000",
+			"block_hashes": "[]",
+			"block_number": "0",
+			"block_coinbase": "0x0000000000000000000000000000000000000000",
+			"block_timestamp": "0",
+			"block_difficulty": "0",
+			"block_gas_limit": "0",
+			"chain_id": "1",
+			"block_base_fee_per_gas": "0"
+		}
+    	"#;
+
+        let program_spec: Vec<MethodSpec> = {
+            let file_path = "../shared/files/program_spec.json";
+            let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
+            serde_json::from_str(&file_content).expect("JSON deserialization failed")
+        };
+
+
+        let context_state: Vec<_> = {
+            let file_path = "../shared/files/context_state.json";
+            let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
+            serde_json::from_str(&file_content).expect("JSON deserialization failed")
+        };
+
+        println!("TEST DA VEDERE");
+        println!("Program spec: {:?}", program_spec);
+        println!("Context state: {:?}", context_state);
+        let value = U256::from_dec_str("0").unwrap();
+
+        let result = run_evm(
+            calldata,
+            context_state.clone(),
+            program_spec.clone(),
+            blockchain_settings,
+            value
+        );
+        println!("Result: {:?}", result);
+        assert_eq!(result[0], "true"); // exploit should be found
+
+        let hashed_program_spec = conditions::hash_program_spec(&program_spec);
+        assert_eq!(result[1], hex::encode(hashed_program_spec));
+
+        let hashed_context_data = context::hash_context_state(&context_state);
+        assert_eq!(result[2], hex::encode(hashed_context_data));
+
+        let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
+        assert_eq!(result[3], prover_address.to_string());
+    }
 }
