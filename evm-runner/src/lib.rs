@@ -494,6 +494,7 @@ pub fn run_evm(
     context_state: Vec<AccountData>,
     program_spec: Vec<MethodSpec>,
     blockchain_settings: &str,
+    value: U256,
 ) -> Vec<String> {
     // 0. Preliminaries
     // 0.1 Initialize the EVM config
@@ -507,6 +508,11 @@ pub fn run_evm(
     // 0.1 Obtain the caller, target and context data
     let target_data = context_state[0].clone();
     let caller_data = context_state[1].clone();
+    let arbitrary_data = context_state[2].clone();
+
+    println!("Caller data: {:?}", caller_data);
+    println!("Target data: {:?}", target_data);
+    println!("Arbitrary data: {:?}", arbitrary_data);
 
     // 0.2 Pre-checks
     assert!(caller_data.address == CALLER_ADDRESS);
@@ -555,18 +561,26 @@ pub fn run_evm(
     let state_target_bytecode = pre_state.code(target_address);
     assert!(!state_target_bytecode.is_empty());
 
+    let arbitrary_address = H160::from_str(&arbitrary_data.address).unwrap();
+    let state_arbitrary_bytecode = pre_state.code(arbitrary_address);
+    assert!(!state_arbitrary_bytecode.is_empty());
+
     // 3. Execute the transaction (TODO: Contract call if caller is a contract)
     let precompiles = BTreeMap::new();
     let mut executor = StackExecutor::new_with_precompiles(pre_state, &config, &precompiles);
 
     let (exit_reason, _) = executor.transact_call(
         H160::from_str(&caller_data.address).unwrap(),
-        H160::from_str(&target_data.address).unwrap(),
-        U256::from_dec_str("0").unwrap(),
+        H160::from_str(&arbitrary_data.address).unwrap(),
+        value,
         hex::decode(calldata).unwrap(),
         u64::MAX,
         Vec::new(),
     );
+    println!("Calldata: {:?}", calldata);
+    println!(" caller bal : {:?}", caller_data.balance);
+    println!(" target bal : {:?}", target_data.balance);
+    println!(" Arbitr bal : {:?}", arbitrary_data.balance);
     println!("Exit reason: {:?}", exit_reason);
 
     assert!(matches!(
@@ -622,6 +636,7 @@ mod tests {
     pub const OUFLOW_CONTRACT_BYTECODE: &str =
         include_str!("../../bytecode/OverUnderFlowVulnerable.bin-runtime");
 
+    /*
     #[test]
     fn evm_find_new_exploit_target_contract_works() {
         /*
@@ -885,10 +900,10 @@ mod tests {
         let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
         assert_eq!(result[3], prover_address.to_string());
     }
-
+    */
     #[test]
     fn evm_find_new_exploit_over_reentrancy_attack_works() {
-        let calldata = "c792413f0000000000000000000000000000000000000000000000000000000000000001"; // startAttack(1) ->  Start reentrancy 
+        let calldata = "64dd891a0000000000000000000000000000000000000000000000000de0b6b3a7640000"; // attack(1000000000000000000) ->  Start reentrancy sending 1 ETH
         let blockchain_settings = r#"
         {
 			"gas_price": "0",
@@ -905,23 +920,19 @@ mod tests {
     	"#;
 
         let program_spec: Vec<MethodSpec> = {
-            let file_path = "../shared/files/program_spec.json";
+            let file_path = "../shared/examples/reentrancy/program_spec.json";
             let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
             serde_json::from_str(&file_content).expect("JSON deserialization failed")
         };
-
 
         let context_state: Vec<_> = {
-            let file_path = "../shared/files/context_state.json";
+            let file_path = "../shared/examples/reentrancy/context_state.json";
             let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
             serde_json::from_str(&file_content).expect("JSON deserialization failed")
         };
 
-        println!("TEST DA VEDERE");
-        println!("Program spec: {:?}", program_spec);
-        println!("Context state: {:?}", context_state);
-        let value = U256::from_dec_str("0").unwrap();
-
+        let value = U256::from_dec_str("10000000000000000000").unwrap();
+        println!("Value: {:?}", value);
         let result = run_evm(
             calldata,
             context_state.clone(),

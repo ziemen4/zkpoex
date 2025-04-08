@@ -4,21 +4,18 @@ pragma solidity ^0.8.0;
 contract ReentrancyVulnerable {
     mapping(address => uint256) public balances;
 
-    function deposit(uint256 amount) public {
-        balances[msg.sender] += amount;
+    function depositETH() public payable {
+        balances[msg.sender] += msg.value;
     }
 
-    function withdraw(uint256 amount) public {
-        require(balances[msg.sender] >= amount, "Insufficient balance");
-        (bool success, ) = msg.sender.call{value: amount}("");
-        require(success, "Transfer failed");
-        balances[msg.sender] -= amount;
-    }
+    function withdrawETH() public {
+        uint256 balance = balances[msg.sender];
 
-    function getBalance() public view returns (uint256) {
-        return balances[msg.sender];
-    }
+        // Send ETH 
+        (bool success, ) = msg.sender.call{value: balance}("");
+        require(success, "Withdraw failed");
 
-    // Fallback function to receive Ether
-    receive() external payable {}
+        // Update Balance -- Vulnerable to reentrancy, the balance is updated after the ETH transfer
+        balances[msg.sender] = 0;
+    }
 }
