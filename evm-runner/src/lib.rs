@@ -260,6 +260,7 @@ fn check_fixed_condition(
 }
 
 fn check_input_dependant_fixed_condition(
+    pre_state: &MemoryStackState<MemoryBackend>,
     state: &MemoryStackState<MemoryBackend>,
     input_dependant_fixed_condition: &InputDependantFixedCondition,
     calldata: &str,
@@ -445,6 +446,7 @@ fn prove_final_state(
             }
             Condition::InputDependantFixedCondition(condition) => {
                 let result = check_input_dependant_fixed_condition(
+                    &pre_state,
                     &post_state,
                     &condition,
                     &calldata,
@@ -508,7 +510,9 @@ pub fn run_evm(
     // 0.1 Obtain the caller, target and context data
     let target_data = context_state[0].clone();
     let caller_data = context_state[1].clone();
-    let arbitrary_data = context_state[2].clone();
+
+    let arbitrary_data = context_state.get(2).cloned();
+
 
     println!("Caller data: {:?}", caller_data);
     println!("Target data: {:?}", target_data);
@@ -561,17 +565,28 @@ pub fn run_evm(
     let state_target_bytecode = pre_state.code(target_address);
     assert!(!state_target_bytecode.is_empty());
 
-    let arbitrary_address = H160::from_str(&arbitrary_data.address).unwrap();
-    let state_arbitrary_bytecode = pre_state.code(arbitrary_address);
-    assert!(!state_arbitrary_bytecode.is_empty());
+    let arbitrary_address;
+    let state_arbitrary_bytecode;
+    if let Some(arbitrary_data) = &arbitrary_data {
+        arbitrary_address = H160::from_str(&arbitrary_data.address).unwrap();
+        state_arbitrary_bytecode = pre_state.code(arbitrary_address);
+        assert!(!state_arbitrary_bytecode.is_empty());
+    }
+
 
     // 3. Execute the transaction (TODO: Contract call if caller is a contract)
     let precompiles = BTreeMap::new();
     let mut executor = StackExecutor::new_with_precompiles(pre_state, &config, &precompiles);
 
+    let address_to_call = if let Some(arbitrary) = context_state.get(2) {
+        H160::from_str(&arbitrary.address).unwrap()
+        } else {
+            H160::from_str(&target_data.address).unwrap()
+        };
+
     let (exit_reason, _) = executor.transact_call(
         H160::from_str(&caller_data.address).unwrap(),
-        H160::from_str(&arbitrary_data.address).unwrap(),
+        address_to_call,
         value,
         hex::decode(calldata).unwrap(),
         u64::MAX,
@@ -580,7 +595,6 @@ pub fn run_evm(
     println!("Calldata: {:?}", calldata);
     println!(" caller bal : {:?}", caller_data.balance);
     println!(" target bal : {:?}", target_data.balance);
-    println!(" Arbitr bal : {:?}", arbitrary_data.balance);
     println!("Exit reason: {:?}", exit_reason);
 
     assert!(matches!(
@@ -636,7 +650,7 @@ mod tests {
     pub const OUFLOW_CONTRACT_BYTECODE: &str =
         include_str!("../../bytecode/OverUnderFlowVulnerable.bin-runtime");
 
-    /*
+    
     #[test]
     fn evm_find_new_exploit_target_contract_works() {
         /*
@@ -698,6 +712,7 @@ mod tests {
             context_state.clone(),
             program_spec.clone(),
             blockchain_settings,
+            U256::from_dec_str("0").unwrap(), 
         );
         println!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
@@ -711,7 +726,7 @@ mod tests {
         let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
         assert_eq!(result[3], prover_address.to_string());
     }
-
+    
     #[test]
     fn evm_find_new_exploit_target_contract_erc20_works() {
         /*
@@ -797,6 +812,7 @@ mod tests {
             context_state.clone(),
             program_spec.clone(),
             blockchain_settings,
+            U256::from_dec_str("0").unwrap(), 
         );
 
         println!("Result: {:?}", result);
@@ -887,6 +903,7 @@ mod tests {
             context_state.clone(),
             program_spec.clone(),
             blockchain_settings,
+            U256::from_dec_str("0").unwrap(), 
         );
         println!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
@@ -900,7 +917,7 @@ mod tests {
         let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
         assert_eq!(result[3], prover_address.to_string());
     }
-    */
+    
     #[test]
     fn evm_find_new_exploit_over_reentrancy_attack_works() {
         let calldata = "64dd891a0000000000000000000000000000000000000000000000000de0b6b3a7640000"; // attack(1000000000000000000) ->  Start reentrancy sending 1 ETH
