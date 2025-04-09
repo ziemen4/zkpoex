@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
     // Parse CLI arguments
-    let matches = utils::parse_cli_args();
+    let matches = utils::parse_cli_args_host();
 
     let function_name = matches.get_one::<String>("function").unwrap();
     let params = matches.get_one::<String>("params").unwrap();

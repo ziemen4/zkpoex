@@ -14,7 +14,7 @@ use tokio;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
     // Parse CLI arguments
-    let matches = utils::parse_cli_args();
+    let matches = utils::parse_cli_args_sc_owner();
 
     // CLI Arguments are as follows
     // --private-key: Private key of the wallet

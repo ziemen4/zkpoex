@@ -122,9 +122,9 @@ pub mod utils {
     }
 
     /// -------------------------------------------
-    /// Parses CLI arguments and returns the matches.
+    /// Parses CLI arguments and returns the matches for host crate.
     /// -------------------------------------------
-    pub fn parse_cli_args() -> clap::ArgMatches {
+    pub fn parse_cli_args_host() -> clap::ArgMatches {
         Command::new("zkpoex-cli")
             .version("1.0")
             .author("Ziemann, Alessandro")
@@ -143,6 +143,51 @@ pub mod utils {
                     .long("params")
                     .value_name("PARAMS")
                     .help("Sets the function parameters (e.g., 'true')")
+                    .required(true),
+            )
+            .arg(
+                Arg::new("context-state")
+                    .short('c')
+                    .long("context-state")
+                    .value_name("CONTEXT_STATE")
+                    .help("Sets the context state file path containing the state data")
+                    .required(true)
+                    .value_parser(clap::value_parser!(PathBuf)),
+            )
+            .arg(
+                Arg::new("program-spec")
+                    .short('p')
+                    .long("program-spec")
+                    .value_name("PROGRAM_SPEC")
+                    .help("Sets the program spec file path containing the method specifications")
+                    .required(true)
+                    .value_parser(clap::value_parser!(PathBuf)),
+            )
+            .get_matches()
+    }
+
+    /// -------------------------------------------
+    /// Parses CLI arguments and returns the matches for sc-owner crate.
+    /// -------------------------------------------
+    pub fn parse_cli_args_sc_owner() -> clap::ArgMatches {
+        Command::new("zkpoex-cli")
+            .version("1.0")
+            .author("Ziemann, Alessandro")
+            .about("Generates zk proofs for Ethereum smart contract exploits")
+            .arg(
+                Arg::new("private-key")
+                    .short('p')
+                    .long("private-key")
+                    .value_name("WALLET_PRIV_KEY")
+                    .help("Sets the private key of the deployer wallet")
+                    .required(true),
+            )
+            .arg(
+                Arg::new("risc0-verifier-contract-address")
+                    .short('r')
+                    .long("risc0-verifier-contract-address")
+                    .value_name("RISC0_VERIFIER_CONTRACT_ADDRESS")
+                    .help("Sets the address of the RISC0 verifier contract")
                     .required(true),
             )
             .arg(
@@ -301,9 +346,9 @@ pub mod evm_utils {
     ) -> Result<String, Box<dyn std::error::Error>> {
         let deploy_output =
             run_cast_command(&["send", "--private-key", private_key, "--create", bytecode])?;
-
+        Ok(deploy_output)
         // Just for testing purposes...
-        // Send to the contract address 1 Ether if the deployment was successful to fund the contract
+        /* Send to the contract address 1 Ether if the deployment was successful to fund the contract
         match extract_contract_address(&deploy_output) {
             Some(contract_address) => {
                 let _ = run_cast_command(&[
@@ -315,10 +360,10 @@ pub mod evm_utils {
                     "1000000000000000000",
                 ])?;
                 println!("1 Ether sent to contract: {}", contract_address);
-                Ok(deploy_output)
+                
             }
             None => Err("Failed to extract contract address from deployment output".into()),
-        }
+        }*/
     }
 
     /// -------------------------------------------
