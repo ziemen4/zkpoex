@@ -1,38 +1,20 @@
 [
-    {
-      "method_id": "16112c6c",
-      "conditions": [
-        {
-          "Fixed": {
-            "k_s": "7A46E70000000000000000000000000000000000.balance",
-            "op": "Gt",
-            "v": "0"
-          }
+  {
+    "method_id": "16112c6c",
+    "conditions": [
+      {
+        "Fixed": {
+          "k_s": "7A46E70000000000000000000000000000000000.balance",
+          "op": "Gt",
+          "v": "0"
         }
-      ],
-      "arguments": [
-        {
-          "argument_type": "bool",
-          "argument_name": "_exploit"
-        }
-      ]
-    },
-    {
-      "method_id": "d92dbd19",
-      "conditions": [
-        {
-          "Fixed": {
-            "k_s": "E4C2000000000000000000000000000000000000.storage.77a8c892f7ab5d424f9ebeccb8fdb4bac5c6eeca52b73ecd947e8d0dc1f81ad9",
-            "op": "Gt",
-            "v": "0"
-          }
-        }
-      ],
-      "arguments": [
-        {
-          "argument_type": "bool",
-          "argument_name": "_exploit"
-        }
-      ]
-    }
-  ]
+      }
+    ],
+    "arguments": [
+      {
+        "argument_type": "bool",
+        "argument_name": "_exploit"
+      }
+    ]
+  }
+]

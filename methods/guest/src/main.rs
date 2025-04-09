@@ -5,7 +5,7 @@ use evm_runner::run_evm;
 use risc0_zkvm::guest::env;
 use shared::conditions::MethodSpec;
 use shared::input::AccountData;
-
+use primitive_types::U256;
 fn main() {
     let start = env::cycle_count();
 
@@ -34,8 +34,13 @@ fn main() {
     println!("{:?}", program_spec);
     println!("\n------------------------------------------------\n");
 
+    let value: U256 = env::read();
+    println!("\n------------- GUEST: VALUE -------------\n");
+    println!("{:?}", value);
+    println!("\n------------------------------------------------\n");
+
     // Log input_json
-    let result = run_evm(&calldata, context_state, program_spec, &blockchain_settings);
+    let result = run_evm(&calldata, context_state, program_spec, &blockchain_settings, value);
     env::commit(&result);
 
     let end = env::cycle_count();

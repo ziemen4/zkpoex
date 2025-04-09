@@ -266,6 +266,8 @@ fn check_input_dependant_fixed_condition(
     calldata: &str,
     method_arguments: Vec<MethodArgument>,
 ) -> bool {
+    // TODO: Use pre_state for test initial balance change during reentrancy iteration in fallback 
+
     // The state key is joined by '.', so split it
     let state_key = input_dependant_fixed_condition
         .k_s

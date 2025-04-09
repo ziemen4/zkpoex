@@ -4,6 +4,7 @@ use methods::{ZKPOEX_GUEST_ELF, ZKPOEX_GUEST_ID};
 
 use bytemuck::cast_slice;
 use dotenv::dotenv;
+use primitive_types::U256;
 use risc0_zkvm::{default_prover, ExecutorEnv, InnerReceipt, SuccinctReceipt};
 use serde::Serialize;
 use shared::evm_utils;
@@ -31,6 +32,7 @@ struct InputData<'a> {
     context_state: String,
     program_spec: String,
     blockchain_settings: String,
+    value: U256,
 }
 
 #[tokio::main]
@@ -67,12 +69,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program_spec = fs::read_to_string(program_spec_file).expect("Failed to read file");
     println!("Program spec: {:?}", program_spec);
 
+    // TODO: Need to dinamically set the value based on the function 
+    // For example, for reentranct we need to send as value a value != 0
+    let value = U256::from_dec_str("0").unwrap();
+    
     // Construct the input data
     let input = InputData {
         calldata: &calldata,
         context_state,
         program_spec,
         blockchain_settings,
+        value,
     };
 
     println!("Sending input to guest: {:?}", input);
