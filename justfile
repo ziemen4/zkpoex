@@ -106,6 +106,31 @@ prove function params context_state program_spec network bonsai="false": compile
 	@echo "============================================================"
 
 # -----------------------------------------------------------------------------
+# Example: Basic Vulnerable Proving
+#
+# This recipe wraps the unified prove command with hardcoded parameters for the
+# "exploit(bool)" function, context state, and program specification.
+#
+# Parameters:
+#   network  - Network identifier ("local", "testnet", or "mainnet")
+#   bonsai   - (Optional) "true" for Bonsai proving, "false" for local proving.
+#               Defaults to "false" if not provided.
+# -----------------------------------------------------------------------------
+
+example-basic-vulnerable-prove network bonsai="false": compile-contract
+	@echo "============================================================"
+	@echo "🚀 Starting exploit proving for basic vulnerable contract"
+	@echo " - Function: exploit(bool)"
+	@echo " - Params: true"
+	@echo " - Context State: ./shared/examples/basic-vulnerable/context_state.json"
+	@echo " - Program Specification: ./shared/examples/basic-vulnerable/program_spec.json"
+	@echo " - Network: {{network}}"
+	@echo " - Bonsai: {{bonsai}}"
+	@echo "============================================================"
+	just prove "exploit(bool)" "true" "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "{{network}}" "{{bonsai}}"
+
+
+# -----------------------------------------------------------------------------
 # Example: Over-Under Flow Proving
 #
 # This recipe wraps the unified prove command with hardcoded parameters for the
@@ -127,3 +152,26 @@ example-over-under-flow-prove network bonsai="false": compile-contract
 	@echo " - Bonsai: {{bonsai}}"
 	@echo "============================================================"
 	just prove "withdraw(uint256)" "1001" "./shared/examples/over-under-flow/context_state.json" "./shared/examples/over-under-flow/program_spec.json" "{{network}}" "{{bonsai}}"
+
+# -----------------------------------------------------------------------------
+# Example: Reentrancy Proving
+#
+# This recipe wraps the unified prove command with hardcoded parameters for the
+# "attack(uint256)" function, context state, and program specification.
+#
+# Parameters:
+#   network  - Network identifier ("local", "testnet", or "mainnet")
+#   bonsai   - (Optional) "true" for Bonsai proving, "false" for local proving.
+#               Defaults to "false" if not provided.
+# -----------------------------------------------------------------------------
+example-reentrancy-prove network bonsai="false": compile-contract
+	@echo "============================================================"
+	@echo "🚀 Starting exploit proving for reentrancy"
+	@echo " - Function: attack(uint256)"
+	@echo " - Params: 10000000000000000000"
+	@echo " - Context State: ./shared/examples/reentrancy/context_state.json"
+	@echo " - Program Specification: ./shared/examples/reentrancy/program_spec.json"
+	@echo " - Network: {{network}}"
+	@echo " - Bonsai: {{bonsai}}"
+	@echo "============================================================"
+	just prove "attack(uint256)" "10000000000000000000" "./shared/examples/reentrancy/context_state.json" "./shared/examples/reentrancy/program_spec.json" "{{network}}" "{{bonsai}}"
