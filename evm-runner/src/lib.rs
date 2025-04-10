@@ -493,6 +493,88 @@ fn build_memory_stack_state<'a>(
     state
 }
 
+fn verify_context_state(
+    context_state: &Vec<AccountData>,
+    pre_state: &MemoryStackState<MemoryBackend>,
+) -> (H160, H160) {
+    // Parse the lower and upper bounds for reserved addresses.
+    let lower_bound_reserved_address: U256 =
+        U256::from_str(&RESERVED_ARBITRARY_ADDRESSES.0[2..]).unwrap();
+    let upper_bound_reserved_address: U256 =
+        U256::from_str(&RESERVED_ARBITRARY_ADDRESSES.1[2..]).unwrap();
+
+    // Use Options to later ensure we found both addresses.
+    let mut transaction_initiator_address: Option<H160> = None;
+    let mut transaction_recipient_address: Option<H160> = None;
+    let mut target_flag = false;
+
+    for account_data in context_state.iter() {
+        // Convert the account address string to H160.
+        let account_address = H160::from_str(&account_data.address).unwrap();
+
+        // If marked as the transaction initiator, assign and verify.
+        if account_data.transaction_recipient.is_some() {
+            transaction_recipient_address = Some(account_address);
+        }
+
+        // Check if the account matches the CALLER_ADDRESS
+        if account_address == H160::from_str(CALLER_ADDRESS).unwrap() {
+            if transaction_initiator_address.is_some() {
+                panic!("Only one account data can have the CALLER_ADDRESS");
+            } else {
+                transaction_initiator_address = Some(account_address);
+            }
+        }
+
+        // Check if this account matches the TARGET_ADDRESS.
+        if account_address == H160::from_str(TARGET_ADDRESS).unwrap() {
+            if target_flag {
+                panic!("Only one account data can have the TARGET_ADDRESS");
+            } else {
+                target_flag = true;
+            }
+        }
+
+        // Convert H160 (20 bytes) to U256 for reserved address checks.
+        // We pad the 20-byte array with 12 leading zeros.
+        let mut buf = [0u8; 32];
+        buf[12..].copy_from_slice(&account_address[..]);
+        let account_address_int = U256::from_big_endian(&buf);
+
+        // If the account is outside of the reserved address range, check that it is a template.
+        if account_address_int < lower_bound_reserved_address
+            && account_address_int > upper_bound_reserved_address
+        {
+            // Ensure the account address is in the reserved template addresses.
+            assert!(
+                RESERVED_TEMPLATE_ADDRESSES.contains(&account_data.address.as_str()),
+                "Address {} is not valid since it is not in the reserved range or is not a template", account_data.address
+            );
+        }
+
+        // If the account data has code, check that it is included in the pre state.
+        if !account_data.code.is_empty() {
+            let account_bytecode = pre_state.code(account_address);
+            assert!(
+                !account_bytecode.is_empty(),
+                "Account {} has bytecode but it is not included in the pre state",
+                account_data.address
+            );
+        }
+    }
+
+    // Verify that at least one TARGET_ADDRESS was found.
+    assert!(target_flag, "No account data contained the TARGET_ADDRESS");
+
+    // Verify that the transaction initiator and recipient addresses were found.
+    let initiator = transaction_initiator_address
+        .expect("No account data contained the CALLER_ADDRESS");
+    let recipient = transaction_recipient_address
+        .expect("No account data contained the transaction recipient address");
+
+    (initiator, recipient)
+}
+
 pub fn run_evm(
     calldata: &str,
     context_state: Vec<AccountData>,
@@ -509,41 +591,6 @@ pub fn run_evm(
     let vicinity: MemoryVicinity = from_deserialized_vicinity(deserialize_vicinity);
     println!("Vicinity: {:?}", vicinity);
 
-    // 0.1 Obtain the caller, target and context data
-    let target_data = context_state[0].clone();
-    let caller_data = context_state[1].clone();
-
-    let arbitrary_data = context_state.get(2).cloned();
-
-
-    println!("Caller data: {:?}", caller_data);
-    println!("Target data: {:?}", target_data);
-    println!("Arbitrary data: {:?}", arbitrary_data);
-
-    // 0.2 Pre-checks
-    assert!(caller_data.address == CALLER_ADDRESS);
-    assert!(target_data.address == TARGET_ADDRESS);
-
-    // TODO: Alternatively, if this is too costly, we could allow the program spec
-    //       to specify "any()" as the address, and have the prover just show that some address
-    //       satisfies the condition.
-    let lower_bound_reserved_address: U256 =
-        U256::from_str(&RESERVED_ARBITRARY_ADDRESSES.0[2..]).unwrap();
-    let upper_bound_reserved_address: U256 =
-        U256::from_str(&RESERVED_ARBITRARY_ADDRESSES.1[2..]).unwrap();
-
-    for account_data in context_state.clone() {
-        let account_address = H160::from_str(&account_data.address).unwrap();
-        let account_address_int = U256::from_big_endian(&account_address[..]);
-        if account_address_int >= lower_bound_reserved_address
-            || account_address_int <= upper_bound_reserved_address
-        {
-            continue;
-        }
-        assert!(!RESERVED_TEMPLATE_ADDRESSES.contains(&account_data.address.as_str()));
-        // TODO: For each reserved template address, assert that the correct bytecode is present
-    }
-
     // 1. Setup global state from caller_data and target_data
     let mut global_state: BTreeMap<H160, MemoryAccount> = BTreeMap::new();
     build_global_state(&mut global_state, &context_state);
@@ -558,45 +605,28 @@ pub fn run_evm(
     let pre_state_snapshot =
         build_memory_stack_state(&context_state, &config, &mut snapshot_backend);
 
+    // 1.2 Verify that the accounts are valid and included in the pre state
+    let (transaction_initiatior_address, transaction_recipient_address) = verify_context_state(
+        &context_state,
+        &pre_state,
+    );
     // 2. Prove that the initial state is valid wrt the program specification
     // 2.1 Verify that the program specification is valid
     verify_pre_state(&pre_state, &program_spec);
-
-    // 2.2 Verify that the contract code is in the state
-    let target_address = H160::from_str(&target_data.address).unwrap();
-    let state_target_bytecode = pre_state.code(target_address);
-    assert!(!state_target_bytecode.is_empty());
-
-    let arbitrary_address;
-    let state_arbitrary_bytecode;
-    if let Some(arbitrary_data) = &arbitrary_data {
-        arbitrary_address = H160::from_str(&arbitrary_data.address).unwrap();
-        state_arbitrary_bytecode = pre_state.code(arbitrary_address);
-        assert!(!state_arbitrary_bytecode.is_empty());
-    }
-
 
     // 3. Execute the transaction (TODO: Contract call if caller is a contract)
     let precompiles = BTreeMap::new();
     let mut executor = StackExecutor::new_with_precompiles(pre_state, &config, &precompiles);
 
-    let address_to_call = if let Some(arbitrary) = context_state.get(2) {
-        H160::from_str(&arbitrary.address).unwrap()
-        } else {
-            H160::from_str(&target_data.address).unwrap()
-        };
-
     let (exit_reason, _) = executor.transact_call(
-        H160::from_str(&caller_data.address).unwrap(),
-        address_to_call,
+        transaction_initiatior_address,
+        transaction_recipient_address,
         value,
         hex::decode(calldata).unwrap(),
         u64::MAX,
         Vec::new(),
     );
     println!("Calldata: {:?}", calldata);
-    println!(" caller bal : {:?}", caller_data.balance);
-    println!(" target bal : {:?}", target_data.balance);
     println!("Exit reason: {:?}", exit_reason);
 
     assert!(matches!(
@@ -632,9 +662,8 @@ pub fn run_evm(
     outputs.push(hex::encode(hashed_context_state));
 
     // 6.3 The address of the prover
-    // TODO: For now we use the caller, but we could use a different address sent as a parameter
-    // specially when supporting contract callers
-    let prover_address = H160::from_str(&caller_data.address).unwrap();
+    // TODO: For now we assume that the prover is the transaction initiator
+    let prover_address = transaction_initiatior_address;
     outputs.push(prover_address.to_string());
 
     outputs
@@ -643,18 +672,10 @@ pub fn run_evm(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conditions::compute_mapping_storage_key;
-    use context::{build_context_account_data, ContextAccountDataType};
-    use shared::conditions::{compute_storage_key, MethodArgument, MethodSpec};
+    use shared::conditions::MethodSpec;
 
-    pub const BASIC_VULNERABLE_CONTRACT_BYTECODE: &str =
-        include_str!("../../bytecode/BasicVulnerable.bin-runtime");
-    pub const OUFLOW_CONTRACT_BYTECODE: &str =
-        include_str!("../../bytecode/OverUnderFlowVulnerable.bin-runtime");
-
-    
     #[test]
-    fn evm_find_new_exploit_target_contract_works() {
+    fn evm_find_new_exploit_basic_contract_works() {
         /*
         (**Finding a new exploit**) Calling the method ```exploit``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
@@ -674,40 +695,17 @@ mod tests {
 		}
     	"#;
 
-        let program_spec: Vec<MethodSpec> = vec![
-            // Program specification is a list of method specifications
-            // Where a method is defined by its method id
-            // Conditions is a list of conditions that must be satisfied for the method to be executed
-            // Arguments are the arguments that the method takes
-            MethodSpec {
-                method_id: "16112c6c".to_string(),
-                conditions: vec![Condition::Fixed(FixedCondition {
-                    k_s: "7A46E70000000000000000000000000000000000.balance".to_string(),
-                    op: Operator::Gt,
-                    v: U256::from_dec_str("0").unwrap(),
-                })],
-                arguments: vec![MethodArgument {
-                    argument_type: "bool".to_string(),
-                    argument_name: "_exploit".to_string(),
-                }],
-            },
-        ];
-        let context_state = vec![
-            AccountData {
-                address: "7A46E70000000000000000000000000000000000".to_string(),
-                nonce: U256::one(),
-                balance: U256::from_dec_str("1000000000000000000").unwrap(),
-                storage: BTreeMap::new(),
-                code: hex::decode(BASIC_VULNERABLE_CONTRACT_BYTECODE).unwrap(),
-            },
-            AccountData {
-                address: "CA11E40000000000000000000000000000000000".to_string(),
-                nonce: U256::one(),
-                balance: U256::from_dec_str("10000000000000000000").unwrap(),
-                storage: BTreeMap::new(),
-                code: vec![],
-            },
-        ];
+        let program_spec: Vec<MethodSpec> = {
+            let file_path = "../shared/examples/basic-vulnerable/program_spec.json";
+            let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
+            serde_json::from_str(&file_content).expect("JSON deserialization failed")
+        };
+
+        let context_state: Vec<_> = {
+            let file_path = "../shared/examples/basic-vulnerable/context_state.json";
+            let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
+            serde_json::from_str(&file_content).expect("JSON deserialization failed")
+        };
 
         let result = run_evm(
             calldata,
@@ -730,7 +728,7 @@ mod tests {
     }
     
     #[test]
-    fn evm_find_new_exploit_target_contract_erc20_works() {
+    fn evm_find_new_exploit_basic_contract_erc20_works() {
         /*
         (**Finding a new exploit**) Calling the method ```exploit_erc20``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
@@ -750,65 +748,17 @@ mod tests {
 		 }
 		 "#;
 
-        // First, compute the storage key for the balances mapping at the target address
-        let computed_storage_key = compute_mapping_storage_key(
-            H160::from_str("0x7A46E70000000000000000000000000000000000").unwrap(), // mapping key (address)
-            U256::from(0), // the base slot for the mapping (See ContextTemplateERC20-storageLayout.json)
-        );
+         let program_spec: Vec<MethodSpec> = {
+            let file_path = "../shared/examples/basic-vulnerable/program_spec.json";
+            let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
+            serde_json::from_str(&file_content).expect("JSON deserialization failed")
+        };
 
-        // Initialize the init storage such that the target address has a balance of 100
-        let mut context_erc20_init_storage: BTreeMap<H256, H256> = BTreeMap::new();
-        let amount: H256 = H256::from_low_u64_be(100000);
-        context_erc20_init_storage.insert(computed_storage_key, amount);
-
-        let erc20_account_data = build_context_account_data(
-            ContextAccountDataType::ERC20,
-            Some(context_erc20_init_storage),
-        );
-        let state_path = format!(
-            "{}.storage.{}",
-            erc20_account_data.address,
-            hex::encode(computed_storage_key)
-        );
-
-        let program_spec = vec![
-            // Program specification is a list of method specifications
-            // Where a method is defined by its method id
-            // Conditions is a list of conditions that must be satisfied for the method to be executed
-            // Arguments are the arguments that the method takes
-            MethodSpec {
-                method_id: "d92dbd19".to_string(),
-                conditions: vec![Condition::Fixed(
-                    FixedCondition {
-                        k_s: state_path,
-                        op: Operator::Gt,
-                        v: U256::from_dec_str("0").unwrap(),
-                    },
-                )],
-                arguments: vec![MethodArgument {
-                    argument_type: "bool".to_string(),
-                    argument_name: "_exploit".to_string(),
-                }],
-            },
-        ];
-
-        let context_state = vec![
-            AccountData {
-                address: "7A46E70000000000000000000000000000000000".to_string(),
-                nonce: U256::one(),
-                balance: U256::from_dec_str("0").unwrap(),
-                storage: BTreeMap::new(),
-                code: hex::decode(BASIC_VULNERABLE_CONTRACT_BYTECODE).unwrap(),
-            },
-            AccountData {
-                address: "CA11E40000000000000000000000000000000000".to_string(),
-                nonce: U256::one(),
-                balance: U256::from_dec_str("10000000000000000000").unwrap(),
-                storage: BTreeMap::new(),
-                code: vec![],
-            },
-            erc20_account_data,
-        ];
+        let context_state: Vec<_> = {
+            let file_path = "../shared/examples/basic-vulnerable/context_state.json";
+            let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
+            serde_json::from_str(&file_content).expect("JSON deserialization failed")
+        };
         let result = run_evm(
             calldata,
             context_state.clone(),
@@ -848,57 +798,17 @@ mod tests {
 		}
     	"#;
 
-        // First, compute the storage key for the balances mapping at the target address
-        let computed_storage_key = compute_storage_key(0); // the "balance" variable is at slot 0
+        let program_spec: Vec<MethodSpec> = {
+            let file_path = "../shared/examples/over-under-flow/program_spec.json";
+            let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
+            serde_json::from_str(&file_content).expect("JSON deserialization failed")
+        };
 
-        // Initialize the init storage such that the target address has a balance of 1000
-        let mut over_underflow_init_storage: BTreeMap<H256, H256> = BTreeMap::new();
-        let amount: H256 = H256::from_low_u64_be(1000);
-        over_underflow_init_storage.insert(computed_storage_key, amount);
-
-        let state_path = format!(
-            "{}.storage.{}",
-            "7A46E70000000000000000000000000000000000",
-            hex::encode(computed_storage_key)
-        );
-
-        let program_spec = vec![
-            // Program specification is a list of method specifications
-            // Where a method is defined by its method id
-            // Conditions is a list of conditions that must be satisfied for the method to be executed
-            // Arguments are the arguments that the method takes
-            MethodSpec {
-                method_id: "2e1a7d4d".to_string(),
-                conditions: vec![
-                    Condition::Fixed(FixedCondition {
-                        k_s: state_path,
-                        op: Operator::Neq,
-                        v: U256::from_dec_str("115792089237316195423570985008687907853269984665640564039457584007913129639935").unwrap(), //maximum representable value of uint256
-                    }),
-                ],
-                arguments: vec![MethodArgument {
-                    argument_type: "uint256".to_string(),
-                    argument_name: "amount".to_string(),
-                }],
-            },
-        ];
-
-        let context_state = vec![
-            AccountData {
-                address: "7A46E70000000000000000000000000000000000".to_string(),
-                nonce: U256::one(),
-                balance: U256::from_dec_str("0").unwrap(),
-                storage: over_underflow_init_storage,
-                code: hex::decode(OUFLOW_CONTRACT_BYTECODE).unwrap(),
-            },
-            AccountData {
-                address: "CA11E40000000000000000000000000000000000".to_string(),
-                nonce: U256::one(),
-                balance: U256::from_dec_str("10000000000000000000").unwrap(),
-                storage: BTreeMap::new(),
-                code: vec![],
-            },
-        ];
+        let context_state: Vec<_> = {
+            let file_path = "../shared/examples/over-under-flow/context_state.json";
+            let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
+            serde_json::from_str(&file_content).expect("JSON deserialization failed")
+        };
 
         let result = run_evm(
             calldata,

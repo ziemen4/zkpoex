@@ -3,9 +3,11 @@
         "method_id": "64dd891a",
         "conditions": [
             {
-                "InputDependantFixedCondition": {
+                "InputDependantRelativeCondition": {
                     "k_s": "7A46E70000000000000000000000000000000000.balance",
-                    "op": "Gt",
+                    "op": "Eq",
+                    "k_s_prime": "7A46E70000000000000000000000000000000000.balance",
+                    "input_op": "Add",
                     "input": "amount"
                 }
             }

@@ -925,6 +925,7 @@ pub mod input {
         pub storage: BTreeMap<H256, H256>,
         #[serde(deserialize_with = "deserialize_code")]
         pub code: Vec<u8>,
+        pub transaction_recipient: Option<bool>,
     }
 
     // Custom deserialization for U256
@@ -1002,6 +1003,7 @@ pub mod context {
                 balance: U256::zero(),
                 storage,
                 code: hex::decode(CONTEXT_ERC20_CONTRACT_BYTECODE).unwrap(),
+                transaction_recipient: Some(false),
             },
         };
     }
