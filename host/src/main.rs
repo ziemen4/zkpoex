@@ -2,29 +2,25 @@
 // The ELF is used for proving and the ID is used for verification.
 use methods::{ZKPOEX_GUEST_ELF, ZKPOEX_GUEST_ID};
 
-use bytemuck::cast_slice;
 use dotenv::dotenv;
+use risc0_ethereum_contracts;
 use primitive_types::U256;
-use risc0_zkvm::{default_prover, ExecutorEnv, InnerReceipt, SuccinctReceipt};
+use risc0_zkvm::{default_prover, ExecutorEnv};
 use serde::Serialize;
 use shared::evm_utils;
 use shared::utils;
 use std::fs;
+use anyhow::Context;
 use std::fs::File;
 use std::io::Write;
 use tokio;
 
-fn save_bytes32(filename: &str, data: &[u8]) -> std::io::Result<()> {
+fn save_all_bytes(filename: &str, data: &[u8]) -> std::io::Result<()> {
     let mut file = File::create(filename)?;
-    if data.len() < 32 {
-        let mut padded = vec![0u8; 32];
-        padded[..data.len()].copy_from_slice(data);
-        file.write_all(&padded)?;
-    } else {
-        file.write_all(&data[..32])?;
-    }
+    file.write_all(data)?;
     Ok(())
 }
+
 
 #[derive(Serialize, Debug)]
 struct InputData<'a> {
@@ -96,25 +92,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // This struct contains the receipt along with statistics about execution of the guest
     let prove_info = prover.prove(env, ZKPOEX_GUEST_ELF).unwrap();
 
+    println!("Length in bytes: {}", prove_info.receipt.journal.bytes.len());
+
     // extract the receipt.
     let receipt = prove_info.receipt;
 
-    let journal_bytes = receipt.journal.bytes.as_slice();
-    let seal_bytes: &[u8] = match &receipt.inner {
-        InnerReceipt::Succinct(SuccinctReceipt { seal, .. }) => cast_slice(seal),
-        InnerReceipt::Composite { .. } => {
-            eprintln!("Warning: Full receipt does not contain succinct seal!");
-            &[0u8; 32]
-        }
-        _ => {
-            eprintln!("Warning: Unknown receipt type!");
-            &[0u8; 32]
-        }
-    };
+    let journal_bytes = receipt.journal.bytes.clone();
+    println!("Journal bytes: {:?}", &journal_bytes);
+
+    let seal = risc0_ethereum_contracts::encode_seal(&receipt).context("encode_seal failed")?;
+    println!("Seal: {:?}", &seal);
 
     // Save the journal and seal and provide after to VerifierContract.sol
-    save_bytes32("journal.bin", journal_bytes)?;
-    save_bytes32("seal.bin", seal_bytes)?;
+    save_all_bytes("journal.bin", &journal_bytes)?;
+    save_all_bytes("seal.bin", &seal)?;
 
     let output: u32 = receipt.journal.decode().unwrap();
 

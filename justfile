@@ -45,6 +45,22 @@ test-evm: compile-contract
 	cargo test -p evm-runner -- --nocapture
 
 # -----------------------------------------------------------------------------
+# Run sc-owner tests
+# -----------------------------------------------------------------------------
+test-sc-owner network: compile-contract
+	sh -c ' \
+	  if [ "{{network}}" = "testnet" ]; then \
+	    export ETH_RPC_URL="{{HOLESKY_RPC_URL}}"; \
+	  elif [ "{{network}}" = "mainnet" ]; then \
+	    export ETH_RPC_URL="{{MAINNET_RPC_URL}}"; \
+	  else \
+	    echo "⚠️  Network is unknown, ETH_RPC_URL not set"; \
+	    export ETH_RPC_URL=""; \
+	  fi; \
+	  echo "ETH_RPC_URL: $ETH_RPC_URL"; \
+	  cargo test -p sc-owner -- --nocapture \
+	'
+# -----------------------------------------------------------------------------
 # Deploy the verifier contract (network parameter required)
 # -----------------------------------------------------------------------------
 deploy-verifier context_state program_spec network: compile-contract
