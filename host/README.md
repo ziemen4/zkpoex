@@ -11,7 +11,7 @@ The crate performs the following tasks:
 1. **CLI & Environment Setup:**
 
    - Loads environment variables using [dotenv](https://crates.io/crates/dotenv).
-   - Parses CLI arguments including the target function, parameters, conditions, context state file, ABI file, and program specification file.
+   - Parses CLI arguments including the target function, parameters, context state file, program specification file, network and bonsai config.
 
 2. **Input Preparation:**
 
@@ -47,7 +47,6 @@ The crate performs the following tasks:
 
   - **Context State File:** JSON file containing account data.
   - **Program Specification File:** JSON file outlining program details.
-  - **ABI File:** JSON file representing the target contract’s Application Binary Interface (if applicable).
 
 - **Environment Variables:**  
   Optionally create a `.env` file to configure additional settings.
@@ -67,23 +66,35 @@ The crate performs the following tasks:
 ## Usage
 
 Run the crate with the required CLI arguments. The following options must be provided:
-
-- **`--function`**  
+- **`{{function}}`**  
    Name of the target function.
-- **`--params`**  
+- **`{{params}}`**  
    Parameters for the function call, passed as a string.
-- **`--conditions`**  
-   Conditions required for execution (specific to your exploitation logic).
-- **`--context-state`**  
+- **`{{context-state}}`**  
    Path to a JSON file containing the context state.
-- **`--abi`**  
-   Path to the ABI JSON file for the target contract.
-- **`--program-spec`**  
+- **`{{program-spec}}`**  
    Path to a JSON file containing the program specification.
+- **`{{network}}`**  
+   Specifies the blockchain network to use (e.g., `mainnet`, `testnet` or `local`).
+- **`{{bonsai}}`** (optional - need to set `BONSAI_API_KEY` in the `.env` file)  
+   Set it to `true` if you want to use Remote Proving. By default, it's set to `false`.
 
 ### Example Command
 
-`cargo run -- \   --function "targetFunction" \   --params "param1,param2" \   --conditions "conditionData" \   --context-state ./path/to/context_state.json \   --abi ./path/to/abi.json \   --program-spec ./path/to/program_spec.json`
+`just prove "exploit(bool)" "true" "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "local"`
+
+## Testing the Existing Exploit Examples
+
+If you want to test the existing exploit examples, simply run one of the following commands:
+
+1. **Basic Vulnerable**:
+`just example-basic-vulnerable-prove network bonsai`
+
+2. **Under/Over-Flow Vulnerability**:
+`just example-over-under-flow-prove network bonsai`
+
+3. **Reentrancy Vulnerability**:
+`just example-reentrancy-prove network bonsai`
 
 ### What the Crate Does
 

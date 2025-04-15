@@ -28,87 +28,43 @@ The deployment suite consists of three main components:
 - **Foundry:** Install Foundry by following the [Foundry book](https://book.getfoundry.sh/getting-started/installation).
 - **Solidity Compiler (solc):** Ensure you have `solc` installed.
 - **Node.js (optional):** If you use additional tooling around deployment.
-- **Environment Variables:**  
-  Create a `.env` file in your project root (or export manually) with at least:
-  ```env
-  RISC0_VERIFIER_ADDRESS=0x925d8331ddc0a1F0d96E68CF073DFE1d92b69187
-  SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID
-  ```
   The hash variables (`PROGRAM_SPEC_HASH`, `BYTECODE_HASH`, `CONTEXT_DATA_HASH`) are automatically computed.
 
 ## Directory Structure
 
 ```
 contracts/
-├── src/                     # Solidity contract source files
-│   ├── VerifierContract.sol
-│   └── BasicVulnerable.sol
-├── bytecode/                # Compiled contract bytecode is stored here
-├── scripts/
-│   ├── Deploy.s.sol         # Foundry deployment script (Solidity)
-│   ├── deploy_hashes.rs     # Rust binary to compute required hash values
-│   └── deploy.sh            # Shell script to run the entire deployment workflow
-└── README.md                # This file
+├── src/                                 # Solidity contract source files
+│   ├── context/
+│   │   └── ContextTemplateERC20.sol
+│   ├── examples                         # Dir with Exploits Examples 
+│   │   ├── reentrancy/
+│   │   │   ├── AttackContract.sol
+│   │   │   └── ReentrancyVulnerable.sol
+│   │   ├── BasicVulnerable.sol
+│   │   └── OverUnderFlowVulnerable.sol
+│   ├── VerifierContract.sol             # VerifierContract.sol to verify a proof onchain
+│   └── ImageID.sol                      # ImageID.sol defines the unique image ID hash of the zkVM guest code.
+├── bytecode/                            # Compiled contract bytecode is stored here (.abi, .bin and .bin-runtime format)
+├── test/
+│   ├── mocks/
+│   │   └── MockRiscZeroVerifier.sol     # Mock used in VerifierContract.t.sol
+│   └── VerifierContract.t.sol           # Test file for VerifierContract.sol
+└── README.md                            # This file
 ```
 
 ## Setup & Build
 
-1. **Compile Contracts (Optional):**  
+**Compile Contracts (Optional):**  
    You can compile your Solidity contracts separately using Foundry:
    ```sh
    forge build
    ```
-
-2. **Build the Rust Hash Script:**  
-   Make sure your Rust environment is set up and that the `deploy_hashes` binary is configured in your Cargo.toml (or workspace configuration).  
-   From the project root (or within the contracts folder if configured), you can run:
-   ```sh
-   cargo build --bin deploy_hashes
-   ```
-
-## Deployment Workflow
-
-The deployment process is automated via the `deploy.sh` script. Here’s how it works:
-
-1. **Compute Hashes:**  
-   The script runs the Rust binary `deploy_hashes` (located in `scripts/`) which outputs the following:
-   - `ProgramSpecHash`
-   - `BytecodeHash`
-   - `ContextDataHash`
-
-2. **Export Environment Variables:**  
-   The script parses the output of `deploy_hashes` and exports these values as environment variables.
-
-3. **Deploy Contracts via Foundry:**  
-   The script then calls the Foundry deployment script (`Deploy.s.sol`) using:
-   ```sh
-   forge script scripts/Deploy.s.sol --broadcast --verify --rpc-url $SEPOLIA_RPC_URL
-   ```
-
-## How to Run the Deployment
-
-1. **Set Environment Variables:**  
-   Ensure your `.env` file is configured or manually export the following in your shell:
-   ```sh
-   export RISC0_VERIFIER_ADDRESS=0x925d8331ddc0a1F0d96E68CF073DFE1d92b69187
-   export SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID
-   ```
-   
-2. **Run the Shell Script:**  
-   From within the `contracts` directory, execute:
-   ```sh
-   ./scripts/deploy.sh
-   ```
-   This will:
-   - Compute the hash values using the Rust script.
-   - Set the necessary environment variables.
-   - Deploy the contracts to Sepolia via Foundry.
+   This command is optional because when you run `just prove` the compilation of the contracts is automatic
 
 ## Troubleshooting
 
 - **Missing Dependencies:**  
   Ensure Foundry is installed by running `forge --version` and that your Rust toolchain is up to date.
-- **Environment Variables:**  
-  Double-check that your `.env` file (or exported variables) contains valid RPC URLs and addresses.
 - **Compilation Issues:**  
   If the Rust script fails to build, verify your Cargo.toml dependencies and file paths (especially for the bytecode file).

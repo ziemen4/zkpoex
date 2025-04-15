@@ -17,6 +17,7 @@ contract VerifierContractTest is Test {
     bytes32 constant TEST_CONTEXT_DATA =
         0x3333333333333333333333333333333333333333333333333333333333333333;
     address constant TARGET = address(0xdead);
+    address constant IMAGEID = address(0x1234);
 
     function setUp() public {
         // Deploy the mock RiscZero verifier.
@@ -24,10 +25,9 @@ contract VerifierContractTest is Test {
         // Deploy the VerifierContract with initial parameters.
         verifierContract = new VerifierContract(
             TARGET,
-            address(mockVerifier),
             TEST_PROGRAM_SPEC,
-            TEST_BYTECODE,
-            TEST_CONTEXT_DATA
+            TEST_CONTEXT_DATA,
+            IMAGEID
         );
     }
 
@@ -80,36 +80,22 @@ contract VerifierContractTest is Test {
     function test_updateVerifierFields() public {
         // Define new values for the verifier fields.
         bytes32 newProgramSpec = 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
-        bytes32 newBytecode = 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;
         bytes32 newContextData = 0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;
-        address newTarget = address(0xbeef);
 
         // Update the verifier fields (only the owner can do this).
         verifierContract.updateVerifierFields(
-            newTarget,
             newProgramSpec,
-            newBytecode,
             newContextData
         );
 
         // Verify that the fields have been updated correctly.
-        assertEq(
-            verifierContract.target_contract(),
-            newTarget,
-            "Target contract should update"
-        );
         assertEq(
             verifierContract.program_spec_hash(),
             keccak256(abi.encodePacked(newProgramSpec)),
             "Program spec hash should update"
         );
         assertEq(
-            verifierContract.bytecode_hash(),
-            keccak256(abi.encodePacked(newBytecode)),
-            "Bytecode hash should update"
-        );
-        assertEq(
-            verifierContract.context_data_hash(),
+            verifierContract.context_state_hash(),
             keccak256(abi.encodePacked(newContextData)),
             "Context data hash should update"
         );

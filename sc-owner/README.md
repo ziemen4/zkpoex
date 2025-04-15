@@ -56,19 +56,17 @@ Before using the crate, ensure you have:
 
 ## Usage
 
-Run the crate with the required CLI arguments. For example:
+Run the crate with the required CLI arguments. The following options must be provided:
 
-`cargo run -- \   --private-key <YOUR_PRIVATE_KEY> \   --risc0-verifier-contract-address <RISC0_VERIFIER_CONTRACT_ADDRESS> \   --context-state <PATH_TO_CONTEXT_STATE_JSON> \   --program-spec <PATH_TO_PROGRAM_SPEC_JSON>`
+- **`{{context-state}}`**  
+   Path to a JSON file containing the context state.
+- **`{{program-spec}}`**  
+   Path to a JSON file containing the program specification.
+- **`{{network}}`**  
+   Specifies the blockchain network to use (e.g., `mainnet`, `testnet` or `local`).
 
-### CLI Arguments Description
+### Example Command
 
-- **`--private-key`**  
-   The private key of the wallet that will be used to deploy the contracts.
-- **`--risc0-verifier-contract-address`**  
-   The address of the pre-deployed RISC0 verifier contract.
-- **`--context-state`**  
-   File path to a JSON file containing the context state (a list of account data).
-- **`--program-spec`**  
-   File path to a JSON file containing the program specification.
+`just deploy-verifier "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "testnet"`
 
 ---
