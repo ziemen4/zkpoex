@@ -5,7 +5,8 @@ use methods::{ZKPOEX_GUEST_ELF, ZKPOEX_GUEST_ID};
 use dotenv::dotenv;
 use risc0_ethereum_contracts;
 use primitive_types::U256;
-use risc0_zkvm::{default_prover, ExecutorEnv};
+use risc0_zkvm::{default_prover, ExecutorEnv,SuccinctReceipt, InnerReceipt};
+use bytemuck::cast_slice;
 use serde::Serialize;
 use shared::evm_utils;
 use shared::utils;
@@ -100,12 +101,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let journal_bytes = receipt.journal.bytes.clone();
     println!("Journal bytes: {:?}", &journal_bytes);
 
-    let seal = risc0_ethereum_contracts::encode_seal(&receipt).context("encode_seal failed")?;
-    println!("Seal: {:?}", &seal);
+    let seal_bytes: &[u8] = match &receipt.inner {
+        InnerReceipt::Succinct(SuccinctReceipt { seal, .. }) => cast_slice(seal),
+        InnerReceipt::Composite { .. } => {
+            eprintln!("Warning: Full receipt does not contain succinct seal!");
+            &[0u8; 32]
+        }
+        _ => {
+            eprintln!("Warning: Unknown receipt type!");
+            &[0u8; 32]
+        }
+    };
+
+    println!("Seal bytes: {:?}", &seal_bytes);
 
     // Save the journal and seal and provide after to VerifierContract.sol
     save_all_bytes("journal.bin", &journal_bytes)?;
-    save_all_bytes("seal.bin", &seal)?;
+    save_all_bytes("seal.bin", &seal_bytes)?;
 
     let output: u32 = receipt.journal.decode().unwrap();
 

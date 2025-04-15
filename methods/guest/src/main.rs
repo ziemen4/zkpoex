@@ -6,6 +6,21 @@ use risc0_zkvm::guest::env;
 use shared::conditions::MethodSpec;
 use shared::input::AccountData;
 use primitive_types::U256;
+
+use alloy_sol_types::sol;
+use alloy_sol_types::SolValue;
+use alloy_primitives::{Address, B256};
+use std::str::FromStr;
+
+sol! {
+    struct PublicInput {
+        bool exploitFound;
+        bytes32 programSpecHash;
+        bytes32 contextStateHash;
+        address proverAddress;
+    }
+}
+
 fn main() {
     let start = env::cycle_count();
 
@@ -40,8 +55,22 @@ fn main() {
     println!("\n------------------------------------------------\n");
 
     // Log input_json
-    let result = run_evm(&calldata, context_state, program_spec, &blockchain_settings, value);
-    env::commit(&result);
+    let result = run_evm(&calldata, context_state, program_spec, &blockchain_settings, value);    
+
+    let exploit_found: bool = result[0] == "true";
+    let program_spec_hash: B256 = B256::from_str(&result[1]).expect("Invalid hex for program_spec_hash");
+    let context_state_hash: B256 = B256::from_str(&result[2]).expect("Invalid hex for context_state_hash");
+    let prover_address: Address = Address::from_str(&result[3]).expect("Invalid Ethereum address");
+
+    let input = PublicInput {
+        exploitFound: exploit_found,
+        programSpecHash: program_spec_hash,
+        contextStateHash: context_state_hash,
+        proverAddress: prover_address,
+    };
+
+    let encoded = PublicInput::abi_encode(&input);
+    env::commit_slice(&encoded);
 
     let end = env::cycle_count();
     eprintln!("my_operation_to_measure: {}", end - start);

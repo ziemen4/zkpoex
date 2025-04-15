@@ -664,7 +664,9 @@ pub fn run_evm(
     // 6.3 The address of the prover
     // TODO: For now we assume that the prover is the transaction initiator
     let prover_address = transaction_initiatior_address;
-    outputs.push(prover_address.to_string());
+    let prover_address_str = format!("{:x}", prover_address);
+    println!("Prover address: {}", prover_address_str);
+    outputs.push(prover_address_str);
 
     outputs
 }
@@ -718,9 +720,11 @@ mod tests {
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);
+        println!("Hashed program spec: {:?}", hex::encode(hashed_program_spec));
         assert_eq!(result[1], hex::encode(hashed_program_spec));
 
         let hashed_context_data = context::hash_context_state(&context_state);
+        println!("Hashed context data: {:?}", hex::encode(hashed_context_data));
         assert_eq!(result[2], hex::encode(hashed_context_data));
 
         let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
