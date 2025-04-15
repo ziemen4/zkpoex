@@ -67,6 +67,7 @@ Run the crate with the required CLI arguments. The following options must be pro
 
 ### Example Command
 
-`just deploy-verifier "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "testnet"`
-
+```bash
+just deploy-verifier "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "testnet"
+```
 ---

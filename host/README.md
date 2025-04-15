@@ -75,26 +75,38 @@ Run the crate with the required CLI arguments. The following options must be pro
 - **`{{program-spec}}`**  
    Path to a JSON file containing the program specification.
 - **`{{network}}`**  
-   Specifies the blockchain network to use (e.g., `mainnet`, `testnet` or `local`).
+   Specifies the blockchain network to use (e.g., `mainnet`, `testnet` or `local` (anvil)).
 - **`{{bonsai}}`** (optional - need to set `BONSAI_API_KEY` in the `.env` file)  
    Set it to `true` if you want to use Remote Proving. By default, it's set to `false`.
 
+---
+
 ### Example Command
 
-`just prove "exploit(bool)" "true" "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "local"`
+```
+just prove "exploit(bool)" "true" "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "local"
+```
+
+---
 
 ## Testing the Existing Exploit Examples
 
 If you want to test the existing exploit examples, simply run one of the following commands:
 
 1. **Basic Vulnerable**:
-`just example-basic-vulnerable-prove network bonsai`
-
+   ```bash
+   just example-basic-vulnerable-prove network bonsai
+   ```
 2. **Under/Over-Flow Vulnerability**:
-`just example-over-under-flow-prove network bonsai`
-
+   ```bash
+   just example-over-under-flow-prove network bonsai
+   ```
 3. **Reentrancy Vulnerability**:
-`just example-reentrancy-prove network bonsai`
+   ```bash
+   just example-reentrancy-prove network bonsai
+   ```
+
+---
 
 ### What the Crate Does
 
@@ -108,3 +120,5 @@ If you want to test the existing exploit examples, simply run one of the followi
    The journal and seal are saved as `journal.bin` and `seal.bin` respectively. These files can be used in subsequent verification steps or further analysis.
 - **Verification:**  
    The receipt is verified against the known guest ID (`ZKPOEX_GUEST_ID`), ensuring the integrity of the generated proof.
+
+---
