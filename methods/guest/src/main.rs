@@ -1,17 +1,27 @@
+// Needed for using alloc in no-std environments (e.g., zkVM guest)
 extern crate alloc;
-
 use alloc::{string::String, vec::Vec};
+
+// EVM execution runner (host call into EVM logic)
 use evm_runner::run_evm;
+
+// Guest environment for reading/writing data
 use risc0_zkvm::guest::env;
+
+// Shared data structures for EVM specs and context
 use shared::conditions::MethodSpec;
 use shared::input::AccountData;
+
+// Alloy: Solidity ABI definitions/encoding and Ethereum primitive types
+use alloy_sol_types::{sol, SolValue};
+use alloy_primitives::{Address, B256};
+
+// Standard utility to parse from strings
+use std::str::FromStr;
 use primitive_types::U256;
 
-use alloy_sol_types::sol;
-use alloy_sol_types::SolValue;
-use alloy_primitives::{Address, B256};
-use std::str::FromStr;
 
+// Solidity ABI encoding for public input
 sol! {
     struct PublicInput {
         bool exploitFound;
