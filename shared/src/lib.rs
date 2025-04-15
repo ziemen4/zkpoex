@@ -224,6 +224,15 @@ pub mod evm_utils {
     use std::fs;
     use std::process::Command as ProcessCommand;
     use std::str;
+
+    // Dependancies for call_verify_function()
+    use alloy::providers::ProviderBuilder;
+    use alloy_signer_local::PrivateKeySigner;
+    use alloy::sol;
+    use anyhow::Context;
+    use std::env;
+    use url::Url;
+    use hex::encode;
     /// -------------------------------------------
     /// Executes a cast command and returns the output as a String
     /// -------------------------------------------
@@ -410,25 +419,37 @@ pub mod evm_utils {
     /// -------------------------------------------
     /// Calls the `verify()` function of the deployed VerifierContract
     /// -------------------------------------------
-    pub fn call_verify_function(
+    pub async fn call_verify_function(
         private_key: &str,
         verifier_contract_address: &str,
-        public_input: &str,
-        seal: &str,
-    ) -> Result<String, Box<dyn Error>> {
-        // Send the transaction using cast send
-        let call_output = run_cast_command(&[
-            "send",
-            "--private-key",
-            private_key,
-            verifier_contract_address,
-            "verify(bytes,bytes)",
-            public_input,
-            seal,
-        ])?;
+        public_input: Vec<u8>,
+        seal: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        let rpc_url = env::var("ETH_RPC_URL").context("Impossible to find env var: RPC_URL")?;
+        println!("RPC URL: {}", rpc_url);
+        let url = Url::parse(&rpc_url)?;
+        let pk: PrivateKeySigner = private_key.parse()?;
+        let provider = ProviderBuilder::new().wallet(pk).on_http(url);
 
-        Ok(call_output)
+        sol!(
+            #[sol(rpc)]
+            VerifierContract,
+            "../contracts/out/VerifierContract.sol/VerifierContract.json"
+        );
+
+        let verifier = VerifierContract::new(verifier_contract_address.parse()?, provider);
+        let verify = verifier.verify(
+            public_input.into(),
+            seal.into()
+        );
+        let calldata_hex = format!("0x{}", encode(&verify.calldata()));
+        fs::write("calldata.txt", &calldata_hex)?;
+        verify.call().await?;
+        println!("Verify function called successfully");
+        
+        Ok(())
     }
+
 
     /// -------------------------------------------
     /// Extracts the contract address from cast output

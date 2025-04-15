@@ -8,7 +8,6 @@ methods = { path = "../methods" }
 shared = { path = "../shared" }
 risc0-zkvm = { version = "2.0.0" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-risc0-ethereum-contracts = { version = "2.0.2" }
 serde = { version = "1.0", features = ["derive"] }
 primitive-types = { version = "0.12.0", default-features = false }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
