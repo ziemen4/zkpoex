@@ -1,35 +1,44 @@
-use evm::backend::Basic;
-use shared::conditions;
-use shared::conditions::ArithmeticOperator;
-use shared::conditions::InputDependantFixedCondition;
-use shared::conditions::InputDependantRelativeCondition;
-use shared::conditions::MethodArgument;
-use shared::conditions::MethodSpec;
-use shared::context;
-use shared::input::AccountData;
-extern crate alloc;
-extern crate core;
-
-use crate::alloc::string::ToString;
-use core::str::FromStr;
-
-use alloc::{collections::BTreeMap, string::String, vec::Vec};
-use conditions::{Condition, FixedCondition, Operator, RelativeCondition};
-use ethabi::param_type::Reader;
-use ethabi::{ParamType, Token};
+// Core EVM-related dependencies
 use evm::{
-    backend::{Backend, MemoryAccount, MemoryBackend, MemoryVicinity},
+    backend::{Backend, Basic, MemoryAccount, MemoryBackend, MemoryVicinity},
     executor::stack::{MemoryStackState, StackExecutor, StackSubstateMetadata},
     Config, ExitReason, ExitSucceed,
 };
+
+// Shared logic (conditions, context, types)
+use shared::{
+    conditions::{
+        // Shared Conditions Structs
+        self, Condition, FixedCondition, RelativeCondition, InputDependantFixedCondition, InputDependantRelativeCondition,
+        // Shared Methods Structs
+        MethodArgument, MethodSpec, 
+        // Shared Operators Enums
+        Operator, ArithmeticOperator,
+    },
+    context,
+    input::AccountData,
+};
+
+// ABI & Hex utilities
+use ethabi::{param_type::Reader, ParamType, Token};
 use hex::encode;
-use hpke::kem::X25519HkdfSha256;
-use hpke::{Kem, Serializable};
+
+// HPKE crypto primitives
+use hpke::{kem::X25519HkdfSha256, Kem, Serializable};
+
+// Crypto & Serialization
 use primitive_types::{H160, H256, U256};
-use rand::rngs::StdRng;
-use rand::SeedableRng;
+use rand::{rngs::StdRng, SeedableRng};
 use serde::Deserialize;
-use serde_json::from_str; // Correct parser import
+use serde_json::from_str; 
+
+// Core/std/alloc utilities
+use core::str::FromStr;
+use crate::alloc::string::ToString;
+extern crate alloc;
+extern crate core;
+use alloc::{collections::BTreeMap, string::String, vec::Vec};
+
 
 #[derive(Debug, Deserialize)]
 pub struct DeserializeMemoryVicinity {
@@ -49,11 +58,13 @@ pub struct DeserializeMemoryVicinity {
 const TARGET_ADDRESS: &str = "7A46E70000000000000000000000000000000000";
 // Address `0xCA11E40000000000000000000000000000000000` is reserved for the `Caller`
 const CALLER_ADDRESS: &str = "CA11E40000000000000000000000000000000000";
+
 /*
 Arbitrary contracts (ranging through 000 to fff, in total 4096 addresses) are reserved for the prover
 to deploy arbitrary contracts.
 From `0x1000000000000000000000000000000000000000` to `0x1000000000000000000000000000000000000fff`:
 */
+
 // Instead of defining each arbitrary address, just provide the gap (they are sequential).
 const RESERVED_ARBITRARY_ADDRESSES: (&str, &str) = (
     "1000000000000000000000000000000000000000",
@@ -260,7 +271,6 @@ fn check_fixed_condition(
 }
 
 fn check_input_dependant_fixed_condition(
-    pre_state: &MemoryStackState<MemoryBackend>,
     state: &MemoryStackState<MemoryBackend>,
     input_dependant_fixed_condition: &InputDependantFixedCondition,
     calldata: &str,
@@ -448,7 +458,6 @@ fn prove_final_state(
             }
             Condition::InputDependantFixedCondition(condition) => {
                 let result = check_input_dependant_fixed_condition(
-                    &pre_state,
                     &post_state,
                     &condition,
                     &calldata,
@@ -655,11 +664,11 @@ pub fn run_evm(
 
     // 6.1 The hash of the program's specification used $SHA3(S)$
     let hashed_program_spec = conditions::hash_program_spec(&program_spec);
-    outputs.push(hex::encode(hashed_program_spec));
+    outputs.push(encode(hashed_program_spec));
 
     // 6.2 The hash of context state data $SHA3((a_1, b_1) || ... || (a_n, b_n))$
     let hashed_context_state = context::hash_context_state(&context_state);
-    outputs.push(hex::encode(hashed_context_state));
+    outputs.push(encode(hashed_context_state));
 
     // 6.3 The address of the prover
     // TODO: For now we assume that the prover is the transaction initiator
@@ -681,6 +690,10 @@ mod tests {
         /*
         (**Finding a new exploit**) Calling the method ```exploit``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
+
+        println!("\n ************************************** \n");
+        println!("Running test evm_find_new_exploit_basic_contract_works");
+        println!("\n ************************************** \n");
         let calldata = "16112c6c0000000000000000000000000000000000000000000000000000000000000001"; // exploit(true)
         let blockchain_settings = r#"
         {
@@ -720,15 +733,15 @@ mod tests {
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);
-        println!("Hashed program spec: {:?}", hex::encode(hashed_program_spec));
-        assert_eq!(result[1], hex::encode(hashed_program_spec));
+        println!("Hashed program spec: {:?}", encode(hashed_program_spec));
+        assert_eq!(result[1], encode(hashed_program_spec));
 
         let hashed_context_data = context::hash_context_state(&context_state);
-        println!("Hashed context data: {:?}", hex::encode(hashed_context_data));
-        assert_eq!(result[2], hex::encode(hashed_context_data));
+        println!("Hashed context data: {:?}", encode(hashed_context_data));
+        assert_eq!(result[2], encode(hashed_context_data));
 
-        let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
-        assert_eq!(result[3], prover_address.to_string());
+        let prover_address = "ca11e40000000000000000000000000000000000";
+        assert_eq!(result[3], prover_address);
     }
     
     #[test]
@@ -736,6 +749,9 @@ mod tests {
         /*
         (**Finding a new exploit**) Calling the method ```exploit_erc20``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
+        println!("\n ************************************** \n");
+        println!("Running test evm_find_new_exploit_basic_contract_erc20_works");
+        println!("\n ************************************** \n");
         let calldata = "d92dbd190000000000000000000000000000000000000000000000000000000000000001"; // exploit_erc20(true)
         let blockchain_settings = r#"
 		 {
@@ -775,17 +791,23 @@ mod tests {
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);
-        assert_eq!(result[1], hex::encode(hashed_program_spec));
+        assert_eq!(result[1], encode(hashed_program_spec));
 
         let hashed_context_state = context::hash_context_state(&context_state);
-        assert_eq!(result[2], hex::encode(hashed_context_state));
+        assert_eq!(result[2], encode(hashed_context_state));
 
-        let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
-        assert_eq!(result[3], prover_address.to_string());
+        let prover_address = "ca11e40000000000000000000000000000000000";
+        assert_eq!(result[3], prover_address);
     }
 
     #[test]
     fn evm_find_new_exploit_over_under_flow_storage_works() {
+        /*
+        (**Finding a new exploit**) Calling the method ```withdraw``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
+         */
+        println!("\n ************************************** \n");
+        println!("Running test evm_find_new_exploit_over_under_flow_storage_works");
+        println!("\n ************************************** \n");
         let calldata = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000003e9"; // withdraw(1001) -> 3e9 at the end does not work. With withdraw(1) yes, seems like balance is always 0
         let blockchain_settings = r#"
         {
@@ -825,17 +847,23 @@ mod tests {
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);
-        assert_eq!(result[1], hex::encode(hashed_program_spec));
+        assert_eq!(result[1], encode(hashed_program_spec));
 
         let hashed_context_data = context::hash_context_state(&context_state);
-        assert_eq!(result[2], hex::encode(hashed_context_data));
+        assert_eq!(result[2], encode(hashed_context_data));
 
-        let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
-        assert_eq!(result[3], prover_address.to_string());
+        let prover_address = "ca11e40000000000000000000000000000000000";
+        assert_eq!(result[3], prover_address);
     }
     
     #[test]
     fn evm_find_new_exploit_over_reentrancy_attack_works() {
+        /*
+        (**Finding a new exploit**) Calling the method ```attack``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
+         */
+        println!("\n ************************************** \n");
+        println!("Running test evm_find_new_exploit_over_reentrancy_attack_works");
+        println!("\n ************************************** \n");
         let calldata = "64dd891a0000000000000000000000000000000000000000000000000de0b6b3a7640000"; // attack(1000000000000000000) ->  Start reentrancy sending 1 ETH
         let blockchain_settings = r#"
         {
@@ -877,12 +905,12 @@ mod tests {
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);
-        assert_eq!(result[1], hex::encode(hashed_program_spec));
+        assert_eq!(result[1], encode(hashed_program_spec));
 
         let hashed_context_data = context::hash_context_state(&context_state);
-        assert_eq!(result[2], hex::encode(hashed_context_data));
+        assert_eq!(result[2], encode(hashed_context_data));
 
-        let prover_address = H160::from_str("CA11E40000000000000000000000000000000000").unwrap();
-        assert_eq!(result[3], prover_address.to_string());
+        let prover_address = "ca11e40000000000000000000000000000000000";
+        assert_eq!(result[3], prover_address);
     }
 }

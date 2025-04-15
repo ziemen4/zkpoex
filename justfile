@@ -42,7 +42,7 @@ compile-contract:
 # Run EVM tests
 # -----------------------------------------------------------------------------
 test-evm: compile-contract
-	cargo test -p evm-runner -- --nocapture
+	cargo test -p evm-runner -- --nocapture --test-threads=1
 
 # -----------------------------------------------------------------------------
 # Run sc-owner tests
