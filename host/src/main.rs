@@ -3,7 +3,6 @@
 use methods::{ZKPOEX_GUEST_ELF, ZKPOEX_GUEST_ID};
 
 use dotenv::dotenv;
-use risc0_ethereum_contracts;
 use primitive_types::U256;
 use risc0_zkvm::{default_prover, ExecutorEnv,SuccinctReceipt, InnerReceipt};
 use bytemuck::cast_slice;

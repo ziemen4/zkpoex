@@ -226,13 +226,14 @@ pub mod evm_utils {
     use std::str;
 
     // Dependancies for call_verify_function()
-    use alloy::providers::ProviderBuilder;
+    use alloy_provider::ProviderBuilder;
+    use alloy_sol_types::sol;
     use alloy_signer_local::PrivateKeySigner;
-    use alloy::sol;
     use anyhow::Context;
     use std::env;
     use url::Url;
     use hex::encode;
+
     /// -------------------------------------------
     /// Executes a cast command and returns the output as a String
     /// -------------------------------------------
