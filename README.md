@@ -32,9 +32,11 @@
 ## Prerequisites
 
 - **Rust Toolchain:** Install the latest version from [rustup.rs](https://rustup.rs/).
-- **Solidity Compiler (solc):** Required for compiling smart contracts.
+- **solc (Solidity Compiler):** Required for compiling smart contracts. Install by following the instructions on [Solidity Docs](https://docs.soliditylang.org/en/latest/installing-solidity.html).
+- **solc-select:** A tool to quickly switch between Solidity compiler versions. Install via [solc-select repository](https://github.com/crytic/solc-select).
 - **Just:** A command runner to streamline common tasks. Install via [Justfile instructions](https://github.com/casey/just).
-- **RISC0 SDK:** Follow the installation instructions on [risc0.com](https://risc0.com/).
+- **Risc0 SDK:** Follow the installation instructions on [risc0 Docs](https://dev.risczero.com/api/zkvm/install).
+- **Foundry:** Install Foundry by following the instructions on [Foundry repository](https://github.com/foundry-rs/foundry).
 
 ---
 
@@ -53,6 +55,14 @@
 
    ```sh
    cargo update
+   ```
+
+3. **Build the Foundry project**
+
+   This will compile the Solidity contracts and prepare the project for proper operation.
+
+   ```sh
+   cd contracts && forge build
    ```
 
 ---

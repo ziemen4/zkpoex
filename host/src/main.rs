@@ -35,7 +35,7 @@ use tokio;
 // Dependancies for call_verify_function()
 use alloy_provider::ProviderBuilder;
 use alloy_signer_local::PrivateKeySigner;
-use alloy_sol_types::{sol, SolType};
+use alloy_sol_types::{sol};
 use anyhow::Context;
 use hex::encode;
 use std::env;
@@ -210,7 +210,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     pub const VERIFIER_TESTNET_HOLESKY_ADDRESS: &str = "0xb94aA3E7a1CEFd86B5F439d0Ca34aA9D2c612bd9";
-    use crate::{PublicInput, SolType, call_verify_function, encode};
+    use alloy_sol_types::SolType;
+    use crate::{PublicInput, call_verify_function, encode};
 
     #[tokio::test]
     async fn test_onchain_verify_basic_vuln() -> Result<(), Box<dyn std::error::Error>> {

@@ -1,8 +1,9 @@
-# Global Bonsai settings (update the API key as needed)
+# ----------------------------------------------------------------------------
+# Justfile for zkpoex - zero-knowledge proof of exploit
+# -----------------------------------------------------------------------------
 set dotenv-load
 
-BONSAI_API_KEY := env("BONSAI_API_KEY")
-WALLET_PRIV_KEY := env("WALLET_PRIV_KEY")
+# RPC URLs and Bonsai API URL  
 ANVIL_RPC_URL := "http://localhost:8545"
 SEPOLIA_RPC_URL := "https://ethereum-sepolia-rpc.publicnode.com"
 HOLESKY_RPC_URL := "https://ethereum-holesky-rpc.publicnode.com"
@@ -61,7 +62,7 @@ test-verify network: compile-contract
 	    echo "⚠️  Network is unknown, ETH_RPC_URL not set"; \
 	    export ETH_RPC_URL=""; \
 	  fi; \
-	  echo "ETH_RPC_URL: $ETH_RPC_URL"; \
+	  echo "ETH_RPC_URL: $ETH_RPC_URL \n"; \
 	  cargo test -p host -- --nocapture \
 	'
 # -----------------------------------------------------------------------------
@@ -81,6 +82,10 @@ deploy-verifier context_state program_spec network: ascii-art compile-contract
 	@echo "============================================================"
 
 	sh -c ' \
+	  if [ -z "$WALLET_PRIV_KEY" ]; then \
+	    echo "❌ WALLET_PRIV_KEY is required if you want to deploy VerifierContract.\n"; \
+	    exit 1; \
+	  fi; \
 	  if [ "{{network}}" = "local" ]; then \
 	    export ETH_RPC_URL="{{ANVIL_RPC_URL}}"; \
 	    export VERIFIER_ADDRESS=""; \
@@ -96,9 +101,9 @@ deploy-verifier context_state program_spec network: ascii-art compile-contract
 	    export VERIFIER_ADDRESS=""; \
 	  fi; \
 	  echo "ETH_RPC_URL: $ETH_RPC_URL"; \
-	  echo "VERIFIER_ADDRESS: $VERIFIER_ADDRESS"; \
+	  echo "VERIFIER_ADDRESS: $VERIFIER_ADDRESS \n"; \
 	  cargo run --release -p sc-owner -- \
-	    --private-key "{{WALLET_PRIV_KEY}}" \
+	    --private-key "$WALLET_PRIV_KEY" \
 	    --risc0-verifier-contract-address $VERIFIER_ADDRESS \
 	    --context-state "{{context_state}}" \
 	    --program-spec "{{program_spec}}" \
@@ -145,12 +150,16 @@ prove function params context_state program_spec value network bonsai="false":
 	  fi; \
 	  echo "ETH_RPC_URL: $ETH_RPC_URL"; \
 	  if [ "{{bonsai}}" = "true" ]; then \
-	    echo "Using Bonsai for proving"; \
+	  	if [ -z "$BONSAI_API_KEY" ]; then \
+			echo "❌ BONSAI_API_KEY is required for Bonsai proving but was not set.\n"; \
+			exit 1; \
+		fi; \
+	    echo "Using Bonsai for proving \n"; \
 	    export RISC0_DEV_MODE=0; \
-	    export BONSAI_API_KEY="{{BONSAI_API_KEY}}"; \
+	    export BONSAI_API_KEY="$BONSAI_API_KEY"; \
 	    export BONSAI_API_URL="{{BONSAI_API_URL}}"; \
 	  else \
-	    echo "Using local proving"; \
+	    echo "Using local proving \n"; \
 	    export RISC0_DEV_MODE=1; \
 	  fi; \
 	  cargo run --release -p host -- \
@@ -183,8 +192,8 @@ example-basic-vulnerable-prove network bonsai="false" value="0": ascii-art compi
 	@echo "============================================================"
 	just prove "exploit(bool)" "true" \
 		"./shared/examples/basic-vulnerable/context_state.json" \
-		"./shared/examples/basfalseic-vulnerable/program_spec.json" \
-		"{{value}}" "{{network}}" "{{bonsai}} "
+		"./shared/examples/basic-vulnerable/program_spec.json" \
+		"{{value}}" "{{network}}" "{{bonsai}}"
 
 
 # -----------------------------------------------------------------------------
@@ -207,7 +216,7 @@ example-over-under-flow-prove network bonsai="false" value="0": ascii-art compil
 	just prove "withdraw(uint256)" "1001" \
 		"./shared/examples/over-under-flow/context_state.json" \
 		"./shared/examples/over-under-flow/program_spec.json" \
-		"{{value}}" "{{network}}" "{{bonsai}} "
+		"{{value}}" "{{network}}" "{{bonsai}}"
 
 # -----------------------------------------------------------------------------
 # Example: Reentrancy Proving
