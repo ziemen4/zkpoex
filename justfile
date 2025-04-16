@@ -47,6 +47,9 @@ test-evm: compile-contract
 
 # -----------------------------------------------------------------------------
 # Run sc-owner tests
+#
+# Parameters:
+#  network - Network identifier ("local", "testnet", or "mainnet")
 # -----------------------------------------------------------------------------
 test-sc-owner network: compile-contract
 	sh -c ' \
@@ -62,7 +65,12 @@ test-sc-owner network: compile-contract
 	  cargo test -p sc-owner -- --nocapture \
 	'
 # -----------------------------------------------------------------------------
-# Deploy the verifier contract (network parameter required)
+# Deploy the verifier contract
+#
+# Parameters:
+#   context_state  - Path to the context state JSON file
+#   program_spec   - Path to the program specification JSON file
+#   network        - Network identifier ("local", "testnet", or "mainnet")
 # -----------------------------------------------------------------------------
 deploy-verifier context_state program_spec network: ascii-art compile-contract
 	@echo "============================================================"
@@ -108,6 +116,7 @@ deploy-verifier context_state program_spec network: ascii-art compile-contract
 #   params         - Function parameters (e.g. "1001")
 #   context_state  - Path to the context state JSON file
 #   program_spec   - Path to the program specification JSON file
+#   value          - Value to be passed to the function (in wei)
 #   network        - Network identifier ("local", "testnet", or "mainnet")
 #   bonsai         - (Optional) "true" for Bonsai proving, "false" for local proving.
 #                    Defaults to "false" if not provided.
@@ -188,6 +197,7 @@ example-basic-vulnerable-prove network bonsai="false" value="0": ascii-art compi
 #   network  - Network identifier ("local", "testnet", or "mainnet")
 #   bonsai   - (Optional) "true" for Bonsai proving, "false" for local proving.
 #               Defaults to "false" if not provided.
+#	value   - (Optional) Value to be passed to the function (default: "0")
 # -----------------------------------------------------------------------------
 example-over-under-flow-prove network bonsai="false" value="0": ascii-art compile-contract
 	@echo "============================================================"

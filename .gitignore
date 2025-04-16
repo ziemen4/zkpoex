@@ -7,5 +7,5 @@ bytecode/*.bin
 bytecode/*.bin-runtime
 bytecode/*.abi
 .env
-journal.bin
-seal.bin
+./journal.bin
+./seal.bin

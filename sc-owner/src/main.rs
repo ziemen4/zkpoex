@@ -1,28 +1,24 @@
 // Environment variable loader (.env support)
 use dotenv::dotenv;
 
-use std::fs;
-use tokio;
 use hex;
 use serde_json;
+use std::fs;
+use tokio;
 
-// Shared project modules 
+// Shared project modules
 use shared::{
-    conditions::{
-        hash_program_spec,          
-        MethodSpec,                  
-    },
+    conditions::{hash_program_spec, MethodSpec},
     context::hash_context_state,
-    evm_utils,                       
-    utils,                           
-    input::AccountData,             
+    evm_utils,
+    input::AccountData,
+    utils,
 };
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
-    
+
     // Parse CLI arguments
     let matches = utils::parse_cli_args_sc_owner();
     let private_key = matches.get_one::<String>("private-key").unwrap();
@@ -76,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .to_string()
         .trim_start_matches("0x")
         .to_string();
-        
+
     println!(
         "\nVerifier contract deployed at address: 0x{}",
         verifier_address
@@ -87,17 +83,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
-    pub const VERIFIER_TESTNET_HOLESKY_ADDRESS : &str = "0xb94aA3E7a1CEFd86B5F439d0Ca34aA9D2c612bd9";
+    pub const VERIFIER_TESTNET_HOLESKY_ADDRESS: &str = "0xb94aA3E7a1CEFd86B5F439d0Ca34aA9D2c612bd9";
 
     // Dependancies for call_verify_function()
     use alloy_provider::ProviderBuilder;
-    use alloy_sol_types::{SolType,sol};
     use alloy_signer_local::PrivateKeySigner;
+    use alloy_sol_types::{sol, SolType};
     use anyhow::Context;
-    use std::env;
-    use url::Url;
     use hex::encode;
+    use std::env;
     use std::fs;
+    use url::Url;
 
     sol! {
         struct PublicInput {
@@ -130,25 +126,23 @@ mod tests {
         );
 
         let verifier = VerifierContract::new(verifier_contract_address.parse()?, provider);
-        let verify = verifier.verify(
-            public_input.into(),
-            seal.into()
-        );
+        let verify = verifier.verify(public_input.into(), seal.into());
         let calldata_hex = format!("0x{}", encode(&verify.calldata()));
         fs::write("calldata.txt", &calldata_hex)?;
         verify.call().await?;
         println!("Verify function called successfully");
-        
+
         Ok(())
     }
 
     #[tokio::test]
     async fn test_onchain_verify_basic_vuln() -> Result<(), Box<dyn std::error::Error>> {
         dotenv::dotenv().ok();
-        let private_key = std::env::var("WALLET_PRIV_KEY").expect("PRIVATE_KEY must be set in the .env file");
+        let private_key =
+            std::env::var("WALLET_PRIV_KEY").expect("PRIVATE_KEY must be set in the .env file");
 
-        let journal = std::fs::read("../journal.bin")?;
-        let seal = std::fs::read("../seal.bin")?;
+        let journal = std::fs::read("src/test/journal.bin")?;
+        let seal = std::fs::read("src/test/seal.bin")?;
 
         let input = <PublicInput as SolType>::abi_decode(&journal)
             .expect("Impossible to decode journal.bin");
@@ -158,8 +152,14 @@ mod tests {
         println!("=====================\n");
 
         println!("Exploit found: {}", input.exploitFound);
-        println!("Program spec hash: 0x{}", hex::encode(input.programSpecHash));
-        println!("Context state hash: 0x{}", hex::encode(input.contextStateHash));
+        println!(
+            "Program spec hash: 0x{}",
+            hex::encode(input.programSpecHash)
+        );
+        println!(
+            "Context state hash: 0x{}",
+            hex::encode(input.contextStateHash)
+        );
         println!("Prover address: 0x{}", hex::encode(input.proverAddress));
 
         let _output = call_verify_function(
@@ -167,11 +167,11 @@ mod tests {
             VERIFIER_TESTNET_HOLESKY_ADDRESS,
             journal,
             seal,
-        ).await?; 
+        )
+        .await?;
 
         println!("✅ All tests passed! Valid proof verified on-chain.");
 
         Ok(())
     }
-
 }
