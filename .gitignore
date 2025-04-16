@@ -10,3 +10,5 @@ bytecode/*.abi
 ./journal.bin
 ./seal.bin
 calldata.txt
+journal.bin
+seal.bin

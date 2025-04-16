@@ -216,8 +216,7 @@ mod tests {
     #[tokio::test]
     async fn test_onchain_verify_basic_vuln() -> Result<(), Box<dyn std::error::Error>> {
         dotenv::dotenv().ok();
-        let private_key =
-            std::env::var("WALLET_PRIV_KEY").expect("PRIVATE_KEY must be set in the .env file");
+        let private_key = std::env::var("WALLET_PRIV_KEY").expect("PRIVATE_KEY must be set in the .env file");
 
         let journal = std::fs::read("../sc-owner/src/test/journal.bin")?;
         let seal = std::fs::read("../sc-owner/src/test/seal.bin")?;

@@ -50,17 +50,21 @@ test-evm: compile-contract
 # Run verify test
 #
 # Parameters:
-#  network - Network identifier ("local", "testnet", or "mainnet")
+#  network - Network identifier ("testnet", or "mainnet")
 # -----------------------------------------------------------------------------
 test-verify network: compile-contract
 	sh -c ' \
+	  if [ -z "$WALLET_PRIV_KEY" ]; then \
+	    echo "❌ WALLET_PRIV_KEY is required if you want to verify.\n"; \
+	    exit 1; \
+	  fi; \
 	  if [ "{{network}}" = "testnet" ]; then \
 	    export ETH_RPC_URL="{{HOLESKY_RPC_URL}}"; \
 	  elif [ "{{network}}" = "mainnet" ]; then \
 	    export ETH_RPC_URL="{{MAINNET_RPC_URL}}"; \
 	  else \
-	    echo "⚠️  Network is unknown, ETH_RPC_URL not set"; \
-	    export ETH_RPC_URL=""; \
+	    echo "⚠️ Network is unknown, also you can not use local network for this test. ETH_RPC_URL not set.\n"; \
+	    exit 1; \
 	  fi; \
 	  echo "ETH_RPC_URL: $ETH_RPC_URL \n"; \
 	  cargo test -p host -- --nocapture \
@@ -71,7 +75,7 @@ test-verify network: compile-contract
 # Parameters:
 #   context_state  - Path to the context state JSON file
 #   program_spec   - Path to the program specification JSON file
-#   network        - Network identifier ("local", "testnet", or "mainnet")
+#   network        - Network identifier ("testnet", or "mainnet")
 # -----------------------------------------------------------------------------
 deploy-verifier context_state program_spec network: ascii-art compile-contract
 	@echo "============================================================"
@@ -86,19 +90,15 @@ deploy-verifier context_state program_spec network: ascii-art compile-contract
 	    echo "❌ WALLET_PRIV_KEY is required if you want to deploy VerifierContract.\n"; \
 	    exit 1; \
 	  fi; \
-	  if [ "{{network}}" = "local" ]; then \
-	    export ETH_RPC_URL="{{ANVIL_RPC_URL}}"; \
-	    export VERIFIER_ADDRESS=""; \
-	  elif [ "{{network}}" = "testnet" ]; then \
+	  if [ "{{network}}" = "testnet" ]; then \
 	    export ETH_RPC_URL="{{HOLESKY_RPC_URL}}"; \
 	    export VERIFIER_ADDRESS="{{VERIFIER_ADDRESS_HOLESKY}}"; \
 	  elif [ "{{network}}" = "mainnet" ]; then \
 	    export ETH_RPC_URL="{{MAINNET_RPC_URL}}"; \
 	    export VERIFIER_ADDRESS="{{VERIFIER_ADDRESS_MAINNET}}"; \
 	  else \
-	    echo "⚠️  Network is unknown, ETH_RPC_URL not set"; \
-	    export ETH_RPC_URL=""; \
-	    export VERIFIER_ADDRESS=""; \
+	    echo "⚠️ Network is unknown, also you can not use local network for this test. ETH_RPC_URL not set, no RiscZeroVerifierRouter for this network.\n"; \
+	    exit 1; \
 	  fi; \
 	  echo "ETH_RPC_URL: $ETH_RPC_URL"; \
 	  echo "VERIFIER_ADDRESS: $VERIFIER_ADDRESS \n"; \
@@ -251,7 +251,7 @@ help: ascii-art
 	@echo "\033[90mCOMMANDS:\033[0m"
 	@echo "  compile-contract                  Compile all Solidity contracts"
 	@echo "  test-evm                          Run tests in the evm-runner crate"
-	@echo "  test-verify <network>             Run test for proof verification (local/testnet/mainnet)"
+	@echo "  test-verify                       Run test for proof verification (local/testnet/mainnet)"
 	@echo "  deploy-verifier                   Deploy the verifier"
 	@echo "  prove                             Run the unified proving command"
 	@echo "  example-basic-vulnerable-prove    Run proof for the BasicVulnerable exploit example"

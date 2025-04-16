@@ -77,15 +77,6 @@ The current configuration ensures optimized builds for faster execution of proof
 
 ## Usage
 
-### Running Tests for the EVM Runner
-
-After compiling contracts, you can run the tests for the `evm-runner` package:
-
-```sh
-just test-evm
-```
-
----
 
 ### Proving an Exploit
 
@@ -112,6 +103,16 @@ just compile-contract
 This command is optional because with `just prove` it is fired automatically. It will:
 
 - Compile `BasicVulnerable.sol` and other contracts. The output is stored in the `bytecode` directory.
+
+---
+
+### Running Tests for the EVM Runner
+
+After compiling contracts, you can run the tests for the `evm-runner` package:
+
+```sh
+just test-evm
+```
 
 ---
 
