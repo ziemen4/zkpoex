@@ -46,12 +46,12 @@ test-evm: compile-contract
 	cargo test -p evm-runner -- --nocapture --test-threads=1
 
 # -----------------------------------------------------------------------------
-# Run sc-owner tests
+# Run verify test
 #
 # Parameters:
 #  network - Network identifier ("local", "testnet", or "mainnet")
 # -----------------------------------------------------------------------------
-test-sc-owner network: compile-contract
+test-verify network: compile-contract
 	sh -c ' \
 	  if [ "{{network}}" = "testnet" ]; then \
 	    export ETH_RPC_URL="{{HOLESKY_RPC_URL}}"; \
@@ -62,7 +62,7 @@ test-sc-owner network: compile-contract
 	    export ETH_RPC_URL=""; \
 	  fi; \
 	  echo "ETH_RPC_URL: $ETH_RPC_URL"; \
-	  cargo test -p sc-owner -- --nocapture \
+	  cargo test -p host -- --nocapture \
 	'
 # -----------------------------------------------------------------------------
 # Deploy the verifier contract
@@ -231,15 +231,51 @@ example-reentrancy-prove network bonsai="false": ascii-art compile-contract
 		"10000000000000000000" \
 		"{{network}}" "{{bonsai}}"
 
+help: ascii-art
+	@echo "\033[37mzkpoex\033[0m is a Rust-based toolkit for generating zero-knowledge proofs of EVM exploits."
+	@echo "Built on top of \033[36mrisc0\033[0m, it enables verifiable exploit attestation without leaking details."
+	@echo "This CLI is powered by \033[36mjust\033[0m and provides streamlined commands for testing, proving and deploying."
+	@echo ""
+	@echo "\033[90mUSAGE:\033[0m"
+	@echo "  just <COMMAND> [ARGS]"
+	@echo ""
+	@echo "\033[90mCOMMANDS:\033[0m"
+	@echo "  compile-contract                  Compile all Solidity contracts"
+	@echo "  test-evm                          Run tests in the evm-runner crate"
+	@echo "  test-verify <network>             Run test for proof verification (local/testnet/mainnet)"
+	@echo "  deploy-verifier                   Deploy the verifier"
+	@echo "  prove                             Run the unified proving command"
+	@echo "  example-basic-vulnerable-prove    Run proof for the BasicVulnerable exploit example"
+	@echo "  example-over-under-flow-prove     Run proof for Over/Under Flow exploit example"
+	@echo "  example-reentrancy-prove          Run proof for the Reentrancy exploit example"
+	@echo ""
+	@echo "\033[90mPROVING USAGE:\033[0m"
+	@echo "  just prove <function> <params> <context_state> <program_spec> <value> <network> <bonsai?>"
+	@echo ""
+	@echo "\033[90mNETWORKS:\033[0m"
+	@echo "  local, testnet (holesky), mainnet"
+	@echo ""
+	@echo "\033[90mVERSION:\033[0m"
+	@echo "  \033[3;37mv0.1.0\033[0m"
+	@echo ""
+	
 ascii-art:
-    @echo "\033[35m  ________  __         _______             ________  __     __ \033[0m"; sleep 0.1
-    @echo "\033[35m /        |/  |       /       \\           /        |/  |   /  | \033[0m"; sleep 0.1
-    @echo "\033[36m ∑∑∑∑∑∑∑∑/ ∑∑ |   __  ∑∑∑∑∑∑∑  | ______   ∑∑∑∑∑∑∑/  ∑∑ |   ∑∑| \033[0m"; sleep 0.1
-    @echo "\033[36m     /∑∑/  ∑∑ |  /  | ∑∑ |__∑∑ |/      \\  ∑∑ |__     ∑∑ \\/∑∑/  \033[0m"; sleep 0.1
-    @echo "\033[36m    /∑∑/   ∑∑ |_/∑∑/  ∑∑    ∑∑//∑∑∑∑∑   | ∑∑    |     ∑∑ ∑∑/   \033[0m"; sleep 0.1
-    @echo "\033[36m   /∑∑/    ∑∑   ∑∑/   ∑∑∑∑∑∑∑/ ∑∑ |  ∑∑ | ∑∑∑∑∑/       ∑∑∑∑|  \033[0m"; sleep 0.1
-    @echo "\033[36m  /∑∑/____ ∑∑∑∑∑ \\    ∑∑ |     ∑∑ \\\\__∑∑|  ∑∑|_____    ∑∑/ ∑∑|  \033[0m"; sleep 0.1
-    @echo "\033[36m /∑∑      |∑∑|  ∑∑\\   ∑∑ |     ∑∑    ∑∑/  ∑∑       | ∑∑/   ∑∑\\\\ \033[0m"; sleep 0.1
-    @echo "\033[36m/∑∑∑∑∑∑∑∑/ ∑∑/   ∑∑\\  ∑∑/       ∑∑∑∑∑∑/   ∑∑∑∑∑∑∑/  ∑∑/     ∑∑\\\\ \033[0m"; sleep 0.1
-    @echo "\n"; sleep 0.1 
-    @echo "\n"; sleep 0.1
+	@echo "\033[90m============================================================\033[0m"
+	@echo "\033[36m       zkpoex - zero-knowledge proof of exploit\033[0m"
+	@echo "\033[90m============================================================\033[0m"
+	@echo ""; sleep 0.1
+	@echo "\033[36m           __                                               					\033[0m"; sleep 0.1
+	@echo "\033[36m          | ∑∑                                              					\033[0m"; sleep 0.1
+	@echo "\033[36m ________ | ∑∑   __   ______    ______    ______   __    __ 					\033[0m"; sleep 0.1
+	@echo "\033[36m|        \\| ∑∑  /  \\ /      \\  /      \\  /      \\ |  \\  /  \\ 			\033[0m"; sleep 0.1
+	@echo "\033[36m \\∑∑∑∑∑∑∑∑| ∑∑_/  ∑∑|  ∑∑∑∑∑∑\\|  ∑∑∑∑∑∑\\|  ∑∑∑∑∑∑\\ \\∑∑\\/∑∑ 			\033[0m"; sleep 0.1
+	@echo "\033[36m  /    ∑∑ | ∑∑   ∑∑ | ∑∑  | ∑∑| ∑∑  | ∑∑| ∑∑    ∑∑/  /∑∑∑					\033[0m"; sleep 0.1
+	@echo "\033[36m /  ∑∑∑∑_ | ∑∑∑∑∑∑\\ | ∑∑__/ ∑∑| ∑∑__/ ∑∑| ∑∑∑∑∑∑∑|  / ∑∑∑					\033[0m"; sleep 0.1
+	@echo "\033[36m|  ∑∑    \\| ∑∑  \\∑∑\\| ∑∑    ∑∑ \\∑∑    ∑∑ \\∑∑     \\ /∑∑/ \\∑∑ 			\033[0m"; sleep 0.1
+	@echo "\033[36m \\∑∑∑∑∑∑∑∑ \\∑∑   \\∑∑| ∑∑∑∑∑∑∑   \\∑∑∑∑∑∑   \\∑∑∑∑∑∑ \\∑∑/   \\∑∑			\033[0m"; sleep 0.1
+	@echo "\033[36m                    | ∑∑                                    					\033[0m"; sleep 0.1
+	@echo "\033[36m                    | ∑∑                                    					\033[0m"; sleep 0.1
+	@echo "\033[36m                     \\∑∑ \033[3;37mv0.1.0\033[0m			                \033[0m"; sleep 0.1
+	@echo "\n"; sleep 0.1 
+	@echo "\033[3;90mDeveloped by: galexela & ziemann\033[0m            \033[3;90m Powered by Risc0			\033[0m" ; sleep 0.1
+	@echo "\n"; sleep 0.1
