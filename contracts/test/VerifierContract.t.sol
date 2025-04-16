@@ -4,10 +4,12 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../src/VerifierContract.sol";
 import "./mocks/MockRiscZeroVerifier.sol";
+import "../src/ImageID.sol";
 
 contract VerifierContractTest is Test {
     VerifierContract public verifierContract;
     MockRiscZeroVerifier public mockVerifier;
+    address public imageID;
 
     // Constants for the expected verifier fields.
     bytes32 constant TEST_PROGRAM_SPEC =
@@ -17,19 +19,20 @@ contract VerifierContractTest is Test {
     bytes32 constant TEST_CONTEXT_DATA =
         0x3333333333333333333333333333333333333333333333333333333333333333;
     address constant TARGET = address(0xdead);
-    address constant IMAGEID = address(0x1234);
 
     function setUp() public {
-        // Deploy the mock RiscZero verifier.
-        mockVerifier = new MockRiscZeroVerifier();
-        // Deploy the VerifierContract with initial parameters.
+        bytes memory imageIDBytecode = type(ImageID).runtimeCode;
+        address imageIDAddr = address(0x123456);
+        vm.etch(imageIDAddr, imageIDBytecode);
+
         verifierContract = new VerifierContract(
             TARGET,
             TEST_PROGRAM_SPEC,
             TEST_CONTEXT_DATA,
-            IMAGEID
+            imageIDAddr
         );
     }
+
 
     // The event as declared in VerifierContract.
     event ExploitFound(
@@ -53,7 +56,6 @@ contract VerifierContractTest is Test {
         bytes memory publicInput = abi.encode(
             exploit_found,
             TEST_PROGRAM_SPEC,
-            TEST_BYTECODE,
             TEST_CONTEXT_DATA,
             prover
         );
@@ -67,7 +69,7 @@ contract VerifierContractTest is Test {
         );
 
         // Call verify; since the mock doesn't revert, all checks should pass.
-        verifierContract.verify{value: 0}(publicInput, dummySeal);
+        verifierContract.verify(publicInput, dummySeal);
 
         // Confirm that the prover received the reward.
         assertEq(
@@ -91,12 +93,12 @@ contract VerifierContractTest is Test {
         // Verify that the fields have been updated correctly.
         assertEq(
             verifierContract.program_spec_hash(),
-            keccak256(abi.encodePacked(newProgramSpec)),
+            newProgramSpec,
             "Program spec hash should update"
         );
         assertEq(
             verifierContract.context_state_hash(),
-            keccak256(abi.encodePacked(newContextData)),
+            newContextData,
             "Context data hash should update"
         );
     }

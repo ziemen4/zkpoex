@@ -32,12 +32,60 @@ use std::io::Write;
 // Async runtime
 use tokio;
 
+// Dependancies for call_verify_function()
+use alloy_provider::ProviderBuilder;
+use alloy_signer_local::PrivateKeySigner;
+use alloy_sol_types::{sol, SolType};
+use anyhow::Context;
+use hex::encode;
+use std::env;
+use url::Url;
+
+sol! {
+    struct PublicInput {
+        bool exploitFound;
+        bytes32 programSpecHash;
+        bytes32 contextStateHash;
+        address proverAddress;
+    }
+}
+
+/// -------------------------------------------
+/// Calls the `verify()` function of the deployed VerifierContract
+/// -------------------------------------------
+pub async fn call_verify_function(
+    private_key: &str,
+    verifier_contract_address: &str,
+    public_input: Vec<u8>,
+    seal: Vec<u8>,
+) -> anyhow::Result<()> {
+    let rpc_url = env::var("ETH_RPC_URL").context("Impossible to find env var: RPC_URL")?;
+    println!("RPC URL: {}", rpc_url);
+    let url = Url::parse(&rpc_url)?;
+    let pk: PrivateKeySigner = private_key.parse()?;
+    let provider = ProviderBuilder::new().wallet(pk).on_http(url);
+
+    sol!(
+        #[sol(rpc)]
+        VerifierContract,
+        "../contracts/out/VerifierContract.sol/VerifierContract.json"
+    );
+
+    let verifier = VerifierContract::new(verifier_contract_address.parse()?, provider);
+    let verify = verifier.verify(public_input.into(), seal.into());
+    let calldata_hex = format!("0x{}", encode(&verify.calldata()));
+    fs::write("calldata.txt", &calldata_hex)?;
+    verify.call().await?;
+    println!("Verify function called successfully");
+
+    Ok(())
+}
+
 fn save_all_bytes(filename: &str, data: &[u8]) -> std::io::Result<()> {
     let mut file = File::create(filename)?;
     file.write_all(data)?;
     Ok(())
 }
-
 
 #[derive(Serialize, Debug)]
 struct InputData<'a> {
@@ -157,3 +205,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+
+
+#[cfg(test)]
+mod tests {
+    pub const VERIFIER_TESTNET_HOLESKY_ADDRESS: &str = "0xb94aA3E7a1CEFd86B5F439d0Ca34aA9D2c612bd9";
+    use crate::{PublicInput, SolType, call_verify_function, encode};
+
+    #[tokio::test]
+    async fn test_onchain_verify_basic_vuln() -> Result<(), Box<dyn std::error::Error>> {
+        dotenv::dotenv().ok();
+        let private_key =
+            std::env::var("WALLET_PRIV_KEY").expect("PRIVATE_KEY must be set in the .env file");
+
+        let journal = std::fs::read("../sc-owner/src/test/journal.bin")?;
+        let seal = std::fs::read("../sc-owner/src/test/seal.bin")?;
+
+        let input = <PublicInput as SolType>::abi_decode(&journal)
+            .expect("Impossible to decode journal.bin");
+
+        println!("\n=====================");
+        println!("PUBLIC INPUT DECODED");
+        println!("=====================\n");
+
+        println!("Exploit found: {}", input.exploitFound);
+        println!(
+            "Program spec hash: 0x{}",
+            encode(input.programSpecHash)
+        );
+        println!(
+            "Context state hash: 0x{}",
+            encode(input.contextStateHash)
+        );
+        println!("Prover address: 0x{}", encode(input.proverAddress));
+
+        let _output = call_verify_function(
+            &private_key,
+            VERIFIER_TESTNET_HOLESKY_ADDRESS,
+            journal,
+            seal,
+        )
+        .await?;
+
+        println!("✅ All tests passed! Valid proof verified on-chain.");
+
+        Ok(())
+    }
+}
+

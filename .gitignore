@@ -9,3 +9,4 @@ bytecode/*.abi
 .env
 ./journal.bin
 ./seal.bin
+calldata.txt
