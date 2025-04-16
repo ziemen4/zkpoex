@@ -110,13 +110,14 @@ deploy-verifier context_state program_spec network: compile-contract
 #   bonsai         - (Optional) "true" for Bonsai proving, "false" for local proving.
 #                    Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-prove function params context_state program_spec network bonsai="false":
+prove function params context_state program_spec network value="0" bonsai="false":
 	@echo "============================================================"
 	@echo "🚀 Starting exploit proving"
 	@echo " - Function: {{function}}"
 	@echo " - Params: {{params}}"
 	@echo " - Context State: {{context_state}}"
 	@echo " - Program Specification: {{program_spec}}"
+	@echo " - Value: {{value}} wei" 
 	@echo " - Network: {{network}}"
 	@echo " - Bonsai: {{bonsai}}"
 	@echo "============================================================"
@@ -146,6 +147,7 @@ prove function params context_state program_spec network bonsai="false":
 	    --params "{{params}}" \
 	    --context-state "{{context_state}}" \
 	    --program-spec "{{program_spec}}" \
+		--value "{{value}}" \
 	'
 	@echo "============================================================"
 	@echo "✅ Exploit verified successfully!"
@@ -162,15 +164,15 @@ prove function params context_state program_spec network bonsai="false":
 #   bonsai   - (Optional) "true" for Bonsai proving, "false" for local proving.
 #               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-basic-vulnerable-prove network bonsai="false": compile-contract
+example-basic-vulnerable-prove network value="0" bonsai="false": compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for basic vulnerable contract "
-	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'network' 'bonsai'"
+	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai'"
 	@echo "============================================================"
 	just prove "exploit(bool)" "true" \
 		"./shared/examples/basic-vulnerable/context_state.json" \
 		"./shared/examples/basic-vulnerable/program_spec.json" \
-		"{{network}}" "{{bonsai}}"
+		"{{value}}" "{{network}}" "{{bonsai}}"
 
 
 # -----------------------------------------------------------------------------
@@ -184,15 +186,15 @@ example-basic-vulnerable-prove network bonsai="false": compile-contract
 #   bonsai   - (Optional) "true" for Bonsai proving, "false" for local proving.
 #               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-over-under-flow-prove network bonsai="false": compile-contract
+example-over-under-flow-prove network value="0" bonsai="false": compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for over-under flow contract"
-	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'network' 'bonsai'"
+	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai'"
 	@echo "============================================================"
 	just prove "withdraw(uint256)" "1001" \
 		"./shared/examples/over-under-flow/context_state.json" \
 		"./shared/examples/over-under-flow/program_spec.json" \
-		"{{network}}" "{{bonsai}}"
+		"{{value}}" "{{network}}" "{{bonsai}}"
 
 # -----------------------------------------------------------------------------
 # Example: Reentrancy Proving
@@ -208,9 +210,10 @@ example-over-under-flow-prove network bonsai="false": compile-contract
 example-reentrancy-prove network bonsai="false": compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for reentrancy contract"
-	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'network' 'bonsai'"
+	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai'"
 	@echo "============================================================"
-	just prove "attack(uint256)" "10000000000000000000" \
+	just prove "attack(uint256)" "1000000000000000000" \
 		"./shared/examples/reentrancy/context_state.json" \
 		"./shared/examples/reentrancy/program_spec.json" \
+		"10000000000000000000" \
 		"{{network}}" "{{bonsai}}"

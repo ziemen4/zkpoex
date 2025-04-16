@@ -163,6 +163,14 @@ pub mod utils {
                     .required(true)
                     .value_parser(clap::value_parser!(PathBuf)),
             )
+            .arg(
+                Arg::new("value")
+                    .short('v')
+                    .long("value")
+                    .value_name("VALUE")
+                    .help("Sets the value in wei to send with the transaction")
+                    .required(false),
+            )
             .get_matches()
     }
 

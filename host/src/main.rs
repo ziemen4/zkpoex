@@ -68,7 +68,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program_spec_file = matches
         .get_one::<std::path::PathBuf>("program-spec")
         .unwrap();
+    let value_from_cli = matches.get_one::<String>("value").unwrap();
     let blockchain_settings = get_blockchain_settings().await?;
+    
 
     // Read the contract bytecode file and generate the calldata dynamically
     let calldata = generate_function_signature(function_name, &[params]);
@@ -82,9 +84,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program_spec = fs::read_to_string(program_spec_file).expect("Failed to read file");
     println!("Program spec: {:?}", program_spec);
 
-    // TODO: Need to dinamically set the value based on the function 
-    // For example, for reentranct we need to send as value a value != 0
-    let value = U256::from_dec_str("0").unwrap();
+    let value = if value_from_cli.is_empty() {
+        U256::from_dec_str("0").unwrap()
+    } else {
+        U256::from_dec_str(value_from_cli).unwrap()
+    };
     
     // Construct the input data
     let input = InputData {
