@@ -184,6 +184,7 @@ prove function params context_state program_spec value network bonsai="false":
 #   network  - Network identifier ("local", "testnet", or "mainnet")
 #   bonsai   - (Optional) "true" for Bonsai proving, "false" for local proving.
 #               Defaults to "false" if not provided.
+#	value   - (Optional) Value to be passed to the function (default: "0")
 # -----------------------------------------------------------------------------
 example-basic-vulnerable-prove network bonsai="false" value="0": ascii-art compile-contract
 	@echo "============================================================"
@@ -240,6 +241,38 @@ example-reentrancy-prove network bonsai="false": ascii-art compile-contract
 		"10000000000000000000" \
 		"{{network}}" "{{bonsai}}"
 
+# -----------------------------------------------------------------------------
+# Prove Benchmark
+#
+# This recipe runs the unified prove command but during its execution, it
+# gives metrics about the proving process.
+# Network must be "local" and bonsai must be "false" for this command.
+#
+# Parameters:
+#   function       - Function signature (e.g. "withdraw(uint256)")
+#   params         - Function parameters (e.g. "1001")
+#   context_state  - Path to the context state JSON file
+#   program_spec   - Path to the program specification JSON file
+#	value   - (Optional) Value to be passed to the function (default: "0")
+bench function params context_state program_spec value="0":
+	@echo "============================================================"
+	@echo "⚙️  Running prove benchmark"
+	@echo "   function       = {{function}}"
+	@echo "   params         = {{params}}"
+	@echo "   context_state  = {{context_state}}"
+	@echo "   program_spec   = {{program_spec}}"
+	@echo "   value          = {{value}}"
+	# TODO: Mitigate excution of arbitrary bash script
+	@chmod +x scripts/bench/bench.sh
+	@bash scripts/bench/bench.sh \
+	  "{{function}}" \
+	  "{{params}}" \
+	  "{{context_state}}" \
+	  "{{program_spec}}" \
+	  "{{value}}"
+# -----------------------------------------------------------------------------
+# Help command
+# -----------------------------------------------------------------------------
 help: ascii-art
 	@echo "\033[37mzkpoex\033[0m is a Rust-based toolkit for generating zero-knowledge proofs of EVM exploits."
 	@echo "Built on top of \033[36mrisc0\033[0m, it enables verifiable exploit attestation without leaking details."
@@ -268,6 +301,9 @@ help: ascii-art
 	@echo "  \033[3;37mv0.1.0\033[0m"
 	@echo ""
 	
+# -----------------------------------------------------------------------------
+# ASCII Art
+# -----------------------------------------------------------------------------
 ascii-art:
 	@echo "\033[90m============================================================\033[0m"
 	@echo "\033[36m       zkpoex - zero-knowledge proof of exploit\033[0m"
