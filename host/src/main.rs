@@ -40,6 +40,7 @@ use anyhow::Context;
 use hex::encode;
 use std::env;
 use url::Url;
+use tracing_subscriber::EnvFilter;
 
 sol! {
     struct PublicInput {
@@ -60,7 +61,7 @@ pub async fn call_verify_function(
     seal: Vec<u8>,
 ) -> anyhow::Result<()> {
     let rpc_url = env::var("ETH_RPC_URL").context("Impossible to find env var: RPC_URL")?;
-    println!("RPC URL: {}", rpc_url);
+    shared::log_debug!("RPC URL: {}", rpc_url);
     let url = Url::parse(&rpc_url)?;
     let pk: PrivateKeySigner = private_key.parse()?;
     let provider = ProviderBuilder::new().wallet(pk).on_http(url);
@@ -76,7 +77,7 @@ pub async fn call_verify_function(
     let calldata_hex = format!("0x{}", encode(&verify.calldata()));
     fs::write("calldata.txt", &calldata_hex)?;
     verify.call().await?;
-    println!("Verify function called successfully");
+    shared::log_debug!("Verify function called successfully");
 
     Ok(())
 }
@@ -98,11 +99,6 @@ struct InputData<'a> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize tracing. In order to view logs, run `RUST_LOG=info cargo run`
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::filter::EnvFilter::from_default_env())
-        .init();
-
     dotenv().ok();
 
     // Parse CLI arguments
@@ -118,19 +114,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
     let value_from_cli = matches.get_one::<String>("value").unwrap();
     let blockchain_settings = get_blockchain_settings().await?;
-    
+    let verbose = matches.get_flag("verbose");
+
+    println!("Verbose: {}", verbose);
+    let filter = if verbose {
+        // debug for everything
+        "debug"
+    } else {
+        // info+ for everything
+        "info"
+    };
+
+    let env_filter = EnvFilter::new(filter);
+
+    // Initialize the tracing subscriber with the environment filter
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .init();
 
     // Read the contract bytecode file and generate the calldata dynamically
     let calldata = generate_function_signature(function_name, &[params]);
-    println!("Calldata: {}", calldata);
+    shared::log_debug!("Calldata: {}", calldata);
 
     // Read the context state and program specification files
     let context_state = fs::read_to_string(context_state_file)
         .map_err(|e| format!("Failed to read context state file: {}", e))?;
-    println!("Context state: {:?}", context_state);
+    shared::log_debug!("Context state: {:?}", context_state);
     
     let program_spec = fs::read_to_string(program_spec_file).expect("Failed to read file");
-    println!("Program spec: {:?}", program_spec);
+    shared::log_debug!("Program spec: {:?}", program_spec);
 
     let value = if value_from_cli.is_empty() {
         U256::from_dec_str("0").unwrap()
@@ -147,7 +159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         value,
     };
 
-    println!("Sending input to guest: {:?}", input);
+    shared::log_debug!("Sending input to guest: {:?}", input);
     let env = ExecutorEnv::builder()
         .write(&input)
         .unwrap()
@@ -161,27 +173,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // This struct contains the receipt along with statistics about execution of the guest
     let prove_info = prover.prove(env, ZKPOEX_GUEST_ELF).unwrap();
 
-    println!("Length in bytes: {}", prove_info.receipt.journal.bytes.len());
+    shared::log_debug!("Length in bytes: {}", prove_info.receipt.journal.bytes.len());
 
     // extract the receipt.
     let receipt = prove_info.receipt;
 
     let journal_bytes = receipt.journal.bytes.clone();
-    println!("Journal bytes: {:?}", &journal_bytes);
+    shared::log_debug!("Journal bytes: {:?}", &journal_bytes);
 
     let seal_bytes: &[u8] = match &receipt.inner {
         InnerReceipt::Succinct(SuccinctReceipt { seal, .. }) => cast_slice(seal),
         InnerReceipt::Composite { .. } => {
-            eprintln!("Warning: Full receipt does not contain succinct seal!");
+            shared::log_warn!("Warning: Full receipt does not contain succinct seal!");
             &[0u8; 32]
         }
         _ => {
-            eprintln!("Warning: Unknown receipt type!");
+            shared::log_warn!("Warning: Unknown receipt type!");
             &[0u8; 32]
         }
     };
 
-    println!("Seal bytes: {:?}", &seal_bytes);
+    shared::log_debug!("Seal bytes: {:?}", &seal_bytes);
 
     // Save the journal and seal and provide after to VerifierContract.sol
     save_all_bytes("journal.bin", &journal_bytes)?;
@@ -189,7 +201,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let output: u32 = receipt.journal.decode().unwrap();
 
-    println!(
+    shared::log_info!(
         "Hello, world! I generated a proof of guest execution! {} is a public output from journal",
         output
     );
@@ -197,11 +209,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The receipt was verified at the end of proving, but the below code is an
     // example of how someone else could verify this receipt.
     let verification = receipt.verify(ZKPOEX_GUEST_ID);
-    println!("Verification: {:?}", verification);
+    shared::log_info!("Verification: {:?}", verification);
 
     match receipt.verify(ZKPOEX_GUEST_ID) {
-        Ok(_) => println!("Verification successful!"),
-        Err(e) => println!("Verification failed: {:?}", e),
+        Ok(_) => shared::log_info!("Verification successful!"),
+        Err(e) => shared::log_error!("Verification failed: {:?}", e),
     }
     Ok(())
 }
@@ -224,20 +236,20 @@ mod tests {
         let input = <PublicInput as SolType>::abi_decode(&journal)
             .expect("Impossible to decode journal.bin");
 
-        println!("\n=====================");
-        println!("PUBLIC INPUT DECODED");
-        println!("=====================\n");
+        shared::log_info!("\n=====================");
+        shared::log_info!("PUBLIC INPUT DECODED");
+        shared::log_info!("=====================\n");
 
-        println!("Exploit found: {}", input.exploitFound);
-        println!(
+        shared::log_info!("Exploit found: {}", input.exploitFound);
+        shared::log_info!(
             "Program spec hash: 0x{}",
             encode(input.programSpecHash)
         );
-        println!(
+        shared::log_info!(
             "Context state hash: 0x{}",
             encode(input.contextStateHash)
         );
-        println!("Prover address: 0x{}", encode(input.proverAddress));
+        shared::log_info!("Prover address: 0x{}", encode(input.proverAddress));
 
         let _output = call_verify_function(
             &private_key,
@@ -247,7 +259,7 @@ mod tests {
         )
         .await?;
 
-        println!("✅ All tests passed! Valid proof verified on-chain.");
+        shared::log_info!("✅ All tests passed! Valid proof verified on-chain.");
 
         Ok(())
     }

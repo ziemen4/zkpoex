@@ -115,9 +115,7 @@ fn check_condition_op<T: PartialOrd + std::fmt::Debug>(
     first_val: T,
     second_val: T,
 ) -> bool {
-    println!("FIRST VAL: {:?}", first_val);
-    println!("SECOND VAL: {:?}", second_val);
-    println!("OPERATOR: {:?}", operator);
+    shared::log_debug!("Checking condition {:?} {:?} {:?}", operator, first_val, second_val);
     match operator {
         Operator::Eq => first_val == second_val,
         Operator::Neq => first_val != second_val,
@@ -442,16 +440,15 @@ fn prove_final_state(
             Condition::Fixed(condition) => {
                 let result = check_fixed_condition(&post_state, &condition);
                 if !result {
-                    println!("Fixed condition failed: {:?}", condition);
+                    shared::log_info!("Fixed condition failed: {:?}", condition);
                     exit_succeed = true;
                     break;
                 }
             }
             Condition::Relative(condition) => {
-                println!("Checking relative condition: {:?}", condition);
                 let result = check_relative_condition(&pre_state, &post_state, &condition);
                 if !result {
-                    println!("Relative condition failed: {:?}", condition);
+                    shared::log_info!("Relative condition failed: {:?}", condition);
                     exit_succeed = true;
                     break;
                 }
@@ -464,7 +461,7 @@ fn prove_final_state(
                     method_arguments.clone(),
                 );
                 if !result {
-                    println!("Input dependant fixed condition failed: {:?}", condition);
+                    shared::log_info!("Input dependant fixed condition failed: {:?}", condition);
                     exit_succeed = true;
                     break;
                 }
@@ -477,7 +474,7 @@ fn prove_final_state(
                     method_arguments.clone(),
                 );
                 if !result {
-                    println!("Input dependant relative condition failed: {:?}", condition);
+                    shared::log_info!("Input dependant relative condition failed: {:?}", condition);
                     exit_succeed = true;
                     break;
                 }
@@ -598,7 +595,6 @@ pub fn run_evm(
     // Deserialize vicinity
     let deserialize_vicinity: DeserializeMemoryVicinity = from_str(blockchain_settings).unwrap();
     let vicinity: MemoryVicinity = from_deserialized_vicinity(deserialize_vicinity);
-    println!("Vicinity: {:?}", vicinity);
 
     // 1. Setup global state from caller_data and target_data
     let mut global_state: BTreeMap<H160, MemoryAccount> = BTreeMap::new();
@@ -635,8 +631,7 @@ pub fn run_evm(
         u64::MAX,
         Vec::new(),
     );
-    println!("Calldata: {:?}", calldata);
-    println!("Exit reason: {:?}", exit_reason);
+    shared::log_info!("Exit reason: {:?}", exit_reason);
 
     assert!(matches!(
         exit_reason,
@@ -650,7 +645,7 @@ pub fn run_evm(
     let exploit_found =
         prove_final_state(&pre_state_snapshot, &post_state, &program_spec, calldata);
 
-    println!("Exploit found: {:?}", exploit_found);
+    shared::log_info!("Exploit found: {:?}", exploit_found);
 
     if !exploit_found {
         panic!("No exploit found");
@@ -674,7 +669,6 @@ pub fn run_evm(
     // TODO: For now we assume that the prover is the transaction initiator
     let prover_address = transaction_initiatior_address;
     let prover_address_str = format!("{:x}", prover_address);
-    println!("Prover address: {}", prover_address_str);
     outputs.push(prover_address_str);
 
     outputs
@@ -691,9 +685,9 @@ mod tests {
         (**Finding a new exploit**) Calling the method ```exploit``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
 
-        println!("\n ************************************** \n");
-        println!("Running test evm_find_new_exploit_basic_contract_works");
-        println!("\n ************************************** \n");
+        shared::log_info!("\n ************************************** \n");
+        shared::log_info!("Running test evm_find_new_exploit_basic_contract_works");
+        shared::log_info!("\n ************************************** \n");
         let calldata = "16112c6c0000000000000000000000000000000000000000000000000000000000000001"; // exploit(true)
         let blockchain_settings = r#"
         {
@@ -729,15 +723,15 @@ mod tests {
             blockchain_settings,
             U256::from_dec_str("0").unwrap(), 
         );
-        println!("Result: {:?}", result);
+        shared::log_info!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);
-        println!("Hashed program spec: {:?}", encode(hashed_program_spec));
+        shared::log_info!("Hashed program spec: {:?}", encode(hashed_program_spec));
         assert_eq!(result[1], encode(hashed_program_spec));
 
         let hashed_context_data = context::hash_context_state(&context_state);
-        println!("Hashed context data: {:?}", encode(hashed_context_data));
+        shared::log_info!("Hashed context data: {:?}", encode(hashed_context_data));
         assert_eq!(result[2], encode(hashed_context_data));
 
         let prover_address = "ca11e40000000000000000000000000000000000";
@@ -749,9 +743,9 @@ mod tests {
         /*
         (**Finding a new exploit**) Calling the method ```exploit_erc20``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
-        println!("\n ************************************** \n");
-        println!("Running test evm_find_new_exploit_basic_contract_erc20_works");
-        println!("\n ************************************** \n");
+        shared::log_info!("\n ************************************** \n");
+        shared::log_info!("Running test evm_find_new_exploit_basic_contract_erc20_works");
+        shared::log_info!("\n ************************************** \n");
         let calldata = "d92dbd190000000000000000000000000000000000000000000000000000000000000001"; // exploit_erc20(true)
         let blockchain_settings = r#"
 		 {
@@ -787,7 +781,7 @@ mod tests {
             U256::from_dec_str("0").unwrap(), 
         );
 
-        println!("Result: {:?}", result);
+        shared::log_info!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);
@@ -805,9 +799,9 @@ mod tests {
         /*
         (**Finding a new exploit**) Calling the method ```withdraw``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
-        println!("\n ************************************** \n");
-        println!("Running test evm_find_new_exploit_over_under_flow_storage_works");
-        println!("\n ************************************** \n");
+        shared::log_info!("\n ************************************** \n");
+        shared::log_info!("Running test evm_find_new_exploit_over_under_flow_storage_works");
+        shared::log_info!("\n ************************************** \n");
         let calldata = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000003e9"; // withdraw(1001) -> 3e9 at the end does not work. With withdraw(1) yes, seems like balance is always 0
         let blockchain_settings = r#"
         {
@@ -843,7 +837,7 @@ mod tests {
             blockchain_settings,
             U256::from_dec_str("0").unwrap(), 
         );
-        println!("Result: {:?}", result);
+        shared::log_info!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);
@@ -861,9 +855,9 @@ mod tests {
         /*
         (**Finding a new exploit**) Calling the method ```attack``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
-        println!("\n ************************************** \n");
-        println!("Running test evm_find_new_exploit_over_reentrancy_attack_works");
-        println!("\n ************************************** \n");
+        shared::log_info!("\n ************************************** \n");
+        shared::log_info!("Running test evm_find_new_exploit_over_reentrancy_attack_works");
+        shared::log_info!("\n ************************************** \n");
         let calldata = "64dd891a0000000000000000000000000000000000000000000000000de0b6b3a7640000"; // attack(1000000000000000000) ->  Start reentrancy sending 1 ETH
         let blockchain_settings = r#"
         {
@@ -893,7 +887,7 @@ mod tests {
         };
 
         let value = U256::from_dec_str("10000000000000000000").unwrap();
-        println!("Value: {:?}", value);
+        shared::log_info!("Value: {:?}", value);
         let result = run_evm(
             calldata,
             context_state.clone(),
@@ -901,7 +895,7 @@ mod tests {
             blockchain_settings,
             value
         );
-        println!("Result: {:?}", result);
+        shared::log_info!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
 
         let hashed_program_spec = conditions::hash_program_spec(&program_spec);

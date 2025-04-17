@@ -4,6 +4,11 @@
 //HOST MODULES//
 /////////////////////////////////////////////////////////////////////////////
 
+// Re‑export the tracing crate so macros can use `$crate::tracing::…`
+pub use tracing;
+
+pub mod log;
+
 pub mod utils {
     use crate::conditions::{Condition, FixedCondition, Operator};
     use clap::{Arg, Command};
@@ -171,6 +176,15 @@ pub mod utils {
                     .help("Sets the value in wei to send with the transaction")
                     .required(false),
             )
+            .arg(
+                Arg::new("verbose")
+                    .short('v')
+                    .long("verbose")
+                    .value_name("VERBOSE")
+                    .help("Enable verbose (debug‑level) logging")
+                    .required(false)
+                    .value_parser(clap::value_parser!(bool)),
+            )
             .get_matches()
     }
 
@@ -216,6 +230,15 @@ pub mod utils {
                     .required(true)
                     .value_parser(clap::value_parser!(PathBuf)),
             )
+            .arg(
+                Arg::new("verbose")
+                    .short('v')
+                    .long("verbose")
+                    .value_name("VERBOSE")
+                    .help("Enable verbose (debug‑level) logging")
+                    .required(false)
+                    .value_parser(clap::value_parser!(bool)),
+            )
             .get_matches()
     }
 }
@@ -232,14 +255,15 @@ pub mod evm_utils {
     use std::fs;
     use std::process::Command as ProcessCommand;
     use std::str;
+    use crate::{log_info, log_debug};
 
     /// -------------------------------------------
     /// Executes a cast command and returns the output as a String
     /// -------------------------------------------
     fn run_cast_command(args: &[&str]) -> Result<String, Box<dyn std::error::Error>> {
-        println!("--------------------------------------------------");
-        println!("Executing command: cast {:?}", args);
-        println!("--------------------------------------------------");
+        log_debug!("--------------------------------------------------");
+        log_debug!("Executing command: cast {:?}", args);
+        log_debug!("--------------------------------------------------");
         let output = ProcessCommand::new("cast").args(args).output()?;
         if output.status.success() {
             Ok(str::from_utf8(&output.stdout)?.trim().to_string())
@@ -252,9 +276,9 @@ pub mod evm_utils {
     /// Executes a solc command and returns the output as a String
     /// -------------------------------------------
     fn run_solc_command(args: &[&str]) -> Result<String, Box<dyn std::error::Error>> {
-        println!("--------------------------------------------------");
-        println!("Executing command: solc {:?}", args);
-        println!("--------------------------------------------------");
+        log_debug!("--------------------------------------------------");
+        log_debug!("Executing command: solc {:?}", args);
+        log_debug!("--------------------------------------------------");
         let output = ProcessCommand::new("solc").args(args).output()?;
         if output.status.success() {
             Ok(String::from_utf8(output.stdout)?.trim().to_string())
@@ -368,7 +392,7 @@ pub mod evm_utils {
                     "--value",
                     "1000000000000000000",
                 ])?;
-                println!("1 Ether sent to contract: {}", contract_address);
+                log_info!("1 Ether sent to contract: {}", contract_address);
                 
             }
             None => Err("Failed to extract contract address from deployment output".into()),
@@ -395,7 +419,7 @@ pub mod evm_utils {
             context_state_hash,
             image_id,
         ])?;
-        println!("ABI-Encoded Parameters: {:?}", abi_encoded_params);
+        log_debug!("ABI-Encoded Parameters: {:?}", abi_encoded_params);
 
         // Concatenate the bytecode and ABI-encoded parameters
         let full_bytecode = format!(
@@ -403,7 +427,7 @@ pub mod evm_utils {
             bytecode,
             abi_encoded_params.trim_start_matches("0x")
         );
-        println!("Final Contract Bytecode: {:?}", full_bytecode);
+        log_debug!("Final Contract Bytecode: {:?}", full_bytecode);
 
         let deploy_output = run_cast_command(&[
             "send",
@@ -421,7 +445,7 @@ pub mod evm_utils {
     /// Extracts the contract address from cast output
     /// -------------------------------------------
     pub fn extract_contract_address(output: &str) -> Option<String> {
-        println!("Extracting contract address from: {}", output);
+        log_info!("Extracting contract address from: {}", output);
         for line in output.lines() {
             if line.contains("contractAddress") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
@@ -546,7 +570,6 @@ pub mod evm_utils {
     ) -> Result<BTreeMap<H256, H256>, FromHexError> {
         let output = run_cast_command(&["storage", contract, slot])
             .map_err(|_| FromHexError::InvalidStringLength)?;
-        println!("Raw output: {:?}", output);
 
         let output_trimmed = output.trim();
 
@@ -564,9 +587,6 @@ pub mod evm_utils {
         let value_h256 = H256::from_slice(&decoded_bytes);
         let slot_u64: u64 = slot.parse().unwrap_or(0);
         let slot_hash = H256::from_low_u64_be(slot_u64);
-
-        println!("Slot Hash: {:?}", slot_hash);
-        println!("Value H256: {:?}", value_h256);
 
         let mut storage_map = BTreeMap::new();
         storage_map.insert(slot_hash, value_h256);

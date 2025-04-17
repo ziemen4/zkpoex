@@ -2,6 +2,7 @@
 # Justfile for zkpoex - zero-knowledge proof of exploit
 # -----------------------------------------------------------------------------
 set dotenv-load
+set quiet
 
 # RPC URLs and Bonsai API URL  
 ANVIL_RPC_URL := "http://localhost:8545"
@@ -76,8 +77,10 @@ test-verify network: compile-contract
 #   context_state  - Path to the context state JSON file
 #   program_spec   - Path to the program specification JSON file
 #   network        - Network identifier ("testnet", or "mainnet")
+#   verbose        - (Optional) "true" for verbose output, "false" for silent mode.
+#                    Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-deploy-verifier context_state program_spec network: ascii-art compile-contract
+deploy-verifier context_state program_spec network verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "🚀 Starting verifier deploy"
 	@echo " - Context State: {{context_state}}"
@@ -107,6 +110,7 @@ deploy-verifier context_state program_spec network: ascii-art compile-contract
 	    --risc0-verifier-contract-address $VERIFIER_ADDRESS \
 	    --context-state "{{context_state}}" \
 	    --program-spec "{{program_spec}}" \
+		--verbose "{{verbose}}" \
 	'
 	@echo "============================================================"
 	@echo "✅ Verifier Contract deployed successfully!"
@@ -125,8 +129,10 @@ deploy-verifier context_state program_spec network: ascii-art compile-contract
 #   network        - Network identifier ("local", "testnet", or "mainnet")
 #   bonsai         - (Optional) "true" for Bonsai proving, "false" for local proving.
 #                    Defaults to "false" if not provided.
+#   verbose        - (Optional) "true" for verbose output, "false" for silent mode.
+#                    Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-prove function params context_state program_spec value network bonsai="false":
+prove function params context_state program_spec value network bonsai="false" verbose="false":
 	@echo "============================================================"
 	@echo "🚀 Starting exploit proving"
 	@echo " - Function: {{function}}"
@@ -136,6 +142,7 @@ prove function params context_state program_spec value network bonsai="false":
 	@echo " - Value: {{value}} wei" 
 	@echo " - Network: {{network}}"
 	@echo " - Bonsai: {{bonsai}}"
+	@echo " - Verbose: {{verbose}}"
 	@echo "============================================================"
 	sh -c ' \
 	  if [ "{{network}}" = "local" ]; then \
@@ -168,6 +175,7 @@ prove function params context_state program_spec value network bonsai="false":
 	    --context-state "{{context_state}}" \
 	    --program-spec "{{program_spec}}" \
 		--value "{{value}}" \
+		--verbose "{{verbose}}" \
 	'
 	@echo "============================================================"
 	@echo "✅ Exploit verified successfully!"
@@ -185,8 +193,10 @@ prove function params context_state program_spec value network bonsai="false":
 #   bonsai   - (Optional) "true" for Bonsai proving, "false" for local proving.
 #               Defaults to "false" if not provided.
 #	value   - (Optional) Value to be passed to the function (default: "0")
+#   verbose  - (Optional) "true" for verbose output, "false" for silent mode.
+#               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-basic-vulnerable-prove network bonsai="false" value="0": ascii-art compile-contract
+example-basic-vulnerable-prove network bonsai="false" value="0" verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for basic vulnerable contract "
 	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai'"
@@ -194,7 +204,7 @@ example-basic-vulnerable-prove network bonsai="false" value="0": ascii-art compi
 	just prove "exploit(bool)" "true" \
 		"./shared/examples/basic-vulnerable/context_state.json" \
 		"./shared/examples/basic-vulnerable/program_spec.json" \
-		"{{value}}" "{{network}}" "{{bonsai}}"
+		"{{value}}" "{{network}}" "{{bonsai}}" "{{verbose}}"
 
 
 # -----------------------------------------------------------------------------
@@ -208,8 +218,10 @@ example-basic-vulnerable-prove network bonsai="false" value="0": ascii-art compi
 #   bonsai   - (Optional) "true" for Bonsai proving, "false" for local proving.
 #               Defaults to "false" if not provided.
 #	value   - (Optional) Value to be passed to the function (default: "0")
+#   verbose  - (Optional) "true" for verbose output, "false" for silent mode.
+#               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-over-under-flow-prove network bonsai="false" value="0": ascii-art compile-contract
+example-over-under-flow-prove network bonsai="false" value="0" verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for over-under flow contract"
 	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai'"
@@ -217,7 +229,7 @@ example-over-under-flow-prove network bonsai="false" value="0": ascii-art compil
 	just prove "withdraw(uint256)" "1001" \
 		"./shared/examples/over-under-flow/context_state.json" \
 		"./shared/examples/over-under-flow/program_spec.json" \
-		"{{value}}" "{{network}}" "{{bonsai}}"
+		"{{value}}" "{{network}}" "{{bonsai}}" "{{verbose}}"
 
 # -----------------------------------------------------------------------------
 # Example: Reentrancy Proving
@@ -229,8 +241,10 @@ example-over-under-flow-prove network bonsai="false" value="0": ascii-art compil
 #   network  - Network identifier ("local", "testnet", or "mainnet")
 #   bonsai   - (Optional) "true" for Bonsai proving, "false" for local proving.
 #               Defaults to "false" if not provided.
+#   verbose  - (Optional) "true" for verbose output, "false" for silent mode.
+#               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-reentrancy-prove network bonsai="false": ascii-art compile-contract
+example-reentrancy-prove network bonsai="false" verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for reentrancy contract"
 	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai'"
@@ -239,7 +253,7 @@ example-reentrancy-prove network bonsai="false": ascii-art compile-contract
 		"./shared/examples/reentrancy/context_state.json" \
 		"./shared/examples/reentrancy/program_spec.json" \
 		"10000000000000000000" \
-		"{{network}}" "{{bonsai}}"
+		"{{network}}" "{{bonsai}}" "{{verbose}}"
 
 # -----------------------------------------------------------------------------
 # Prove Benchmark

@@ -14,6 +14,7 @@ use shared::{
     input::AccountData,
     utils,
 };
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -31,6 +32,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program_spec_file = matches
         .get_one::<std::path::PathBuf>("program-spec")
         .unwrap();
+    let verbose = matches.get_flag("verbose");
+
+    let filter = if verbose {
+        // debug for everything
+        "debug"
+    } else {
+        // info+ for everything
+        "info"
+    };
+
+    let env_filter = EnvFilter::new(filter);
+
+    // Initialize the tracing subscriber with the environment filter
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .init();
 
     // Read the context state file
     let context_state_json = fs::read_to_string(context_state_file).expect("Failed to read file");
@@ -51,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let image_id = evm_utils::extract_contract_address(&imageid_deploy_output)
         .expect("Failed to extract contract address")
         .to_string();
-    println!("ImageID contract deployed at address: {}", image_id);
+    shared::log_info!("ImageID contract deployed at address: {}", image_id);
 
     // Deploy the Verifier contract
     let contract_bytecode_file_verifier = "./bytecode/VerifierContract.bin";
@@ -73,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .trim_start_matches("0x")
         .to_string();
 
-    println!(
+    shared::log_info!(
         "\nVerifier contract deployed at address: 0x{}",
         verifier_address
     );
