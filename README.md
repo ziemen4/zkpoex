@@ -1,21 +1,29 @@
+<div align="center" style="margin-bottom: 20px">
+  <img width="230px" height="341px" src="assets/zkpoex-logo.png">
+</div>
+
+![Version](https://img.shields.io/badge/v0.1.0-blue)
+![Keywords](https://img.shields.io/badge/keywords-zero--knowledge%20proofs%2C%20zkVM%2C%20ethereum%2C%20smart%20contract%20vulnerability-black)
+
 # zkpoex
 
 **zkpoex** is a Rust-based toolkit for proving exploits using zero-knowledge proofs. Built on top of [risc0](https://risc0.com/), zkpoex leverages advanced cryptographic techniques to verify exploit execution without revealing sensitive details. The project is structured as a Cargo workspace with four main members: **host**, **methods**, **evm-runner** and **sc-owner**.
+
+![zkpoex](assets/zkpoex.png)
 
 ---
 
 ## Table of Contents
 
 - [zkpoex](#zkpoex)
-  - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Setup \& Build](#setup--build)
   - [Usage](#usage)
-    - [Running Tests for the EVM Runner](#running-tests-for-the-evm-runner)
     - [Proving an Exploit](#proving-an-exploit)
     - [Compiling Contracts](#compiling-contracts)
+    - [Running Tests for the EVM Runner](#running-tests-for-the-evm-runner)
   - [Project Structure](#project-structure)
   - [License](#license)
 
