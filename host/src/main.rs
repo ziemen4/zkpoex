@@ -4,7 +4,7 @@
 use methods::{ZKPOEX_GUEST_ELF, ZKPOEX_GUEST_ID};
 
 // zkVM core prover and receipt types
-use risc0_zkvm::{default_prover, ExecutorEnv, SuccinctReceipt, InnerReceipt};
+use risc0_zkvm::{default_prover, ExecutorEnv, Groth16Receipt, InnerReceipt, SuccinctReceipt};
 
 // Environment utilities
 use dotenv::dotenv;
@@ -41,6 +41,39 @@ use hex::encode;
 use std::env;
 use url::Url;
 use tracing_subscriber::EnvFilter;
+
+use risc0_zkvm::sha::Digestible;
+use anyhow::bail;
+
+/// Encode the seal of the given receipt for use with EVM smart contract verifiers.
+///
+/// Appends the verifier selector, determined from the first 4 bytes of the verifier parameters
+/// including the Groth16 verification key and the control IDs that commit to the RISC Zero
+/// circuits.
+pub fn encode_seal(receipt: &risc0_zkvm::Receipt) -> Result<Vec<u8>, anyhow::Error> {
+    let seal = match receipt.inner.clone() {
+        InnerReceipt::Fake(receipt) => {
+            let seal = receipt.claim.digest().as_bytes().to_vec();
+            let selector = &[0xFFu8; 4];
+            // Create a new vector with the capacity to hold both selector and seal
+            let mut selector_seal = Vec::with_capacity(selector.len() + seal.len());
+            selector_seal.extend_from_slice(selector);
+            selector_seal.extend_from_slice(&seal);
+            selector_seal
+        }
+        InnerReceipt::Groth16(receipt) => {
+            let selector = &receipt.verifier_parameters.as_bytes()[..4];
+            // Create a new vector with the capacity to hold both selector and seal
+            let mut selector_seal = Vec::with_capacity(selector.len() + receipt.seal.len());
+            selector_seal.extend_from_slice(selector);
+            selector_seal.extend_from_slice(receipt.seal.as_ref());
+            selector_seal
+        }
+        _ => bail!("Unsupported receipt type"),
+        // TODO(victor): Add set verifier seal here.
+    };
+    Ok(seal)
+}
 
 sol! {
     struct PublicInput {
@@ -171,18 +204,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Proof information by proving the specified ELF binary.
     // This struct contains the receipt along with statistics about execution of the guest
-    let prove_info = prover.prove(env, ZKPOEX_GUEST_ELF).unwrap();
+    // let prove_info = prover.prove(env, ZKPOEX_GUEST_ELF).unwrap();
+    let prove_info = prover
+        .prove_with_ctx(
+            env,
+            &risc0_zkvm::VerifierContext::default(),
+            ZKPOEX_GUEST_ELF,
+            &risc0_zkvm::ProverOpts::groth16(),
+        )
+        .unwrap();
 
     shared::log_debug!("Length in bytes: {}", prove_info.receipt.journal.bytes.len());
 
     // extract the receipt.
     let receipt = prove_info.receipt;
 
+    // Encode the seal with the selector.
+    let onchain_seal = encode_seal(&receipt)?;
+
     let journal_bytes = receipt.journal.bytes.clone();
     shared::log_debug!("Journal bytes: {:?}", &journal_bytes);
 
     let seal_bytes: &[u8] = match &receipt.inner {
         InnerReceipt::Succinct(SuccinctReceipt { seal, .. }) => cast_slice(seal),
+        InnerReceipt::Groth16(Groth16Receipt { seal, .. }) => cast_slice(seal),
         InnerReceipt::Composite { .. } => {
             shared::log_warn!("Warning: Full receipt does not contain succinct seal!");
             &[0u8; 32]
@@ -198,6 +243,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Save the journal and seal and provide after to VerifierContract.sol
     save_all_bytes("journal.bin", &journal_bytes)?;
     save_all_bytes("seal.bin", &seal_bytes)?;
+    save_all_bytes("onchain_seal.bin", &onchain_seal)?;
 
     let output: u32 = receipt.journal.decode().unwrap();
 
@@ -221,17 +267,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
-    pub const VERIFIER_TESTNET_HOLESKY_ADDRESS: &str = "0xb94aA3E7a1CEFd86B5F439d0Ca34aA9D2c612bd9";
+    pub const VERIFIER_TESTNET_HOLESKY_ADDRESS: &str = "0xEF2E59fB6640d5dFDD0e8533B01220896CfBc706";
     use alloy_sol_types::SolType;
     use crate::{PublicInput, call_verify_function, encode};
-
+    use tracing_subscriber::EnvFilter;
+    
     #[tokio::test]
     async fn test_onchain_verify_basic_vuln() -> Result<(), Box<dyn std::error::Error>> {
+        let filter = "info";
+        let env_filter = EnvFilter::new(filter);
+    
+        // Initialize the tracing subscriber with the environment filter
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .init();
+
         dotenv::dotenv().ok();
         let private_key = std::env::var("WALLET_PRIV_KEY").expect("PRIVATE_KEY must be set in the .env file");
 
         let journal = std::fs::read("../sc-owner/src/test/journal.bin")?;
-        let seal = std::fs::read("../sc-owner/src/test/seal.bin")?;
+        let seal = std::fs::read("../sc-owner/src/test/onchain_seal.bin")?;
+
+        shared::log_info!("Journal size: {}", journal.len());
+        shared::log_info!("Seal size: {}", seal.len());
+        shared::log_info!("Journal: {:?}", journal);
+        shared::log_info!("Seal: {:?}", seal);
+
+        // Print journal and seal as hex
+        shared::log_info!("Journal hex: 0x{}", hex::encode(&journal));
+        shared::log_info!("Seal hex: 0x{}", hex::encode(&seal));
 
         let input = <PublicInput as SolType>::abi_decode(&journal)
             .expect("Impossible to decode journal.bin");

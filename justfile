@@ -59,7 +59,9 @@ test-verify network: compile-contract
 	    echo "❌ WALLET_PRIV_KEY is required if you want to verify.\n"; \
 	    exit 1; \
 	  fi; \
-	  if [ "{{network}}" = "testnet" ]; then \
+	  if [ "{{network}}" = "local" ]; then \
+	    export ETH_RPC_URL="{{ANVIL_RPC_URL}}"; \
+	  elif [ "{{network}}" = "testnet" ]; then \
 	    export ETH_RPC_URL="{{HOLESKY_RPC_URL}}"; \
 	  elif [ "{{network}}" = "mainnet" ]; then \
 	    export ETH_RPC_URL="{{MAINNET_RPC_URL}}"; \
@@ -93,7 +95,10 @@ deploy-verifier context_state program_spec network verbose="false": ascii-art co
 	    echo "❌ WALLET_PRIV_KEY is required if you want to deploy VerifierContract.\n"; \
 	    exit 1; \
 	  fi; \
-	  if [ "{{network}}" = "testnet" ]; then \
+	  if [ "{{network}}" = "local" ]; then \
+	    export ETH_RPC_URL="{{ANVIL_RPC_URL}}"; \
+	    export VERIFIER_ADDRESS="{{VERIFIER_ADDRESS_HOLESKY}}"; \
+	  elif [ "{{network}}" = "testnet" ]; then \
 	    export ETH_RPC_URL="{{HOLESKY_RPC_URL}}"; \
 	    export VERIFIER_ADDRESS="{{VERIFIER_ADDRESS_HOLESKY}}"; \
 	  elif [ "{{network}}" = "mainnet" ]; then \
