@@ -12,7 +12,7 @@ contract VerifierContract {
     /// @notice Image ID of the only zkVM binary to accept verification from.
     bytes32 public imageId;
     /// @notice Reward amount (in wei) for a valid exploit.
-    uint256 public constant REWARD_IN_ETH = 1000;
+    // uint256 public constant REWARD_IN_ETH = 1000;
 
     address public owner;
     IRiscZeroVerifier public immutable risc0_verifier_contract;
@@ -21,11 +21,7 @@ contract VerifierContract {
     bytes32 public program_spec_hash;
     bytes32 public context_state_hash;
 
-    event ExploitFound(
-        address indexed prover,
-        address indexed exploit_category,
-        uint256 reward
-    );
+    event ExploitFound(address indexed prover, address indexed verifier);
 
     constructor(
         address _risc0_verifier_contract,
@@ -56,11 +52,9 @@ contract VerifierContract {
     ///         It calls the external risc0 verifier, then decodes and checks the public input.
     ///         If all checks pass, it emits an ExploitFound event and transfers the reward.
     function verify(
-        bytes memory public_input,
-        bytes calldata seal
+        bytes calldata seal,
+        bytes calldata journal
     ) public payable {
-        // Compute the journal from public_input and pass its hash to the verifier.
-        bytes memory journal = abi.encode(public_input);
         risc0_verifier_contract.verify(seal, imageId, sha256(journal));
 
         (
@@ -68,7 +62,7 @@ contract VerifierContract {
             bytes32 claimed_program_spec_hash,
             bytes32 claimed_context_state_hash,
             address prover_address
-        ) = abi.decode(public_input, (bool, bytes32, bytes32, address));
+        ) = abi.decode(journal, (bool, bytes32, bytes32, address));
 
         // Check that an exploit was indeed found.
         require(exploit_found, "Exploit not found");
@@ -83,8 +77,8 @@ contract VerifierContract {
             "Invalid context state hash"
         );
 
-        // Emit event and transfer reward to the prover.
-        emit ExploitFound(prover_address, address(this), REWARD_IN_ETH);
-        require(payable(prover_address).send(REWARD_IN_ETH), "Transfer failed");
+        // Emit event
+        emit ExploitFound(prover_address, address(this));
+        // require(payable(prover_address).send(REWARD_IN_ETH), "Transfer failed");
     }
 }

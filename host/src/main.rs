@@ -14,8 +14,8 @@ use primitive_types::U256;
 
 // Shared project modules
 use shared::{
-    evm_utils::get_blockchain_settings, 
-    utils::{parse_cli_args_host, generate_function_signature}
+    evm_utils::get_blockchain_settings,
+    utils::{generate_function_signature, parse_cli_args_host},
 };
 
 // Serialization helpers
@@ -32,18 +32,19 @@ use std::io::Write;
 // Async runtime
 use tokio;
 
-// Dependancies for call_verify_function()
-use alloy_provider::ProviderBuilder;
-use alloy_signer_local::PrivateKeySigner;
-use alloy_sol_types::{sol};
-use anyhow::Context;
-use hex::encode;
-use std::env;
-use url::Url;
-use tracing_subscriber::EnvFilter;
-
-use risc0_zkvm::sha::Digestible;
+use alloy::{
+    network::{EthereumWallet, TransactionBuilder},
+    primitives::Address,
+    providers::{Provider, ProviderBuilder},
+    rpc::types::TransactionRequest,
+    signers::local::PrivateKeySigner,
+    sol,
+};
 use anyhow::bail;
+use anyhow::Context;
+use risc0_zkvm::sha::Digestible;
+use tracing_subscriber::EnvFilter;
+use url::Url;
 
 /// Encode the seal of the given receipt for use with EVM smart contract verifiers.
 ///
@@ -76,43 +77,10 @@ pub fn encode_seal(receipt: &risc0_zkvm::Receipt) -> Result<Vec<u8>, anyhow::Err
 }
 
 sol! {
-    struct PublicInput {
-        bool exploitFound;
-        bytes32 programSpecHash;
-        bytes32 contextStateHash;
-        address proverAddress;
+    /// The VerifierContract interface
+    interface VerifierContract {
+        function verify(bytes calldata seal, bytes calldata journal) public payable;
     }
-}
-
-/// -------------------------------------------
-/// Calls the `verify()` function of the deployed VerifierContract
-/// -------------------------------------------
-pub async fn call_verify_function(
-    private_key: &str,
-    verifier_contract_address: &str,
-    public_input: Vec<u8>,
-    seal: Vec<u8>,
-) -> anyhow::Result<()> {
-    let rpc_url = env::var("ETH_RPC_URL").context("Impossible to find env var: RPC_URL")?;
-    shared::log_debug!("RPC URL: {}", rpc_url);
-    let url = Url::parse(&rpc_url)?;
-    let pk: PrivateKeySigner = private_key.parse()?;
-    let provider = ProviderBuilder::new().wallet(pk).on_http(url);
-
-    sol!(
-        #[sol(rpc)]
-        VerifierContract,
-        "../contracts/out/VerifierContract.sol/VerifierContract.json"
-    );
-
-    let verifier = VerifierContract::new(verifier_contract_address.parse()?, provider);
-    let verify = verifier.verify(public_input.into(), seal.into());
-    let calldata_hex = format!("0x{}", encode(&verify.calldata()));
-    fs::write("calldata.txt", &calldata_hex)?;
-    verify.call().await?;
-    shared::log_debug!("Verify function called successfully");
-
-    Ok(())
 }
 
 fn save_all_bytes(filename: &str, data: &[u8]) -> std::io::Result<()> {
@@ -133,6 +101,11 @@ struct InputData<'a> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
+
+    let private_key_str =
+        std::env::var("WALLET_PRIV_KEY").expect("PRIVATE_KEY must be set in the .env file");
+    let eth_rpc_url_str =
+        std::env::var("ETH_RPC_URL").expect("ETHEREUM_RPC_URL must be set in the .env file");
 
     // Parse CLI arguments
     let matches = parse_cli_args_host();
@@ -161,9 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_filter = EnvFilter::new(filter);
 
     // Initialize the tracing subscriber with the environment filter
-    tracing_subscriber::fmt()
-        .with_env_filter(env_filter)
-        .init();
+    tracing_subscriber::fmt().with_env_filter(env_filter).init();
 
     // Read the contract bytecode file and generate the calldata dynamically
     let calldata = generate_function_signature(function_name, &[params]);
@@ -173,7 +144,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context_state = fs::read_to_string(context_state_file)
         .map_err(|e| format!("Failed to read context state file: {}", e))?;
     shared::log_debug!("Context state: {:?}", context_state);
-    
+
     let program_spec = fs::read_to_string(program_spec_file).expect("Failed to read file");
     shared::log_debug!("Program spec: {:?}", program_spec);
 
@@ -182,7 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         U256::from_dec_str(value_from_cli).unwrap()
     };
-    
+
     // Construct the input data
     let input = InputData {
         calldata: &calldata,
@@ -214,13 +185,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .unwrap();
 
-    shared::log_debug!("Length in bytes: {}", prove_info.receipt.journal.bytes.len());
+    shared::log_debug!(
+        "Length in bytes: {}",
+        prove_info.receipt.journal.bytes.len()
+    );
 
     // extract the receipt.
     let receipt = prove_info.receipt;
-
-    // Encode the seal with the selector.
-    let onchain_seal = encode_seal(&receipt)?;
 
     let journal_bytes = receipt.journal.bytes.clone();
     shared::log_debug!("Journal bytes: {:?}", &journal_bytes);
@@ -243,7 +214,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Save the journal and seal and provide after to VerifierContract.sol
     save_all_bytes("journal.bin", &journal_bytes)?;
     save_all_bytes("seal.bin", &seal_bytes)?;
-    save_all_bytes("onchain_seal.bin", &onchain_seal)?;
 
     let output: u32 = receipt.journal.decode().unwrap();
 
@@ -261,71 +231,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(_) => shared::log_info!("Verification successful!"),
         Err(e) => shared::log_error!("Verification failed: {:?}", e),
     }
+
+    /* ----------------------------------- */
+    /* ------ Onchain verification ------- */
+    /* ----------------------------------- */
+    shared::log_info!("Ethereum RPC URL: {}", eth_rpc_url_str);
+    shared::log_info!("Private key: {}", private_key_str);
+
+    // Build PrivateKeySigner with private_key
+    let private_key = private_key_str.parse::<PrivateKeySigner>().unwrap();
+    let wallet = EthereumWallet::from(private_key);
+    let eth_rpc_url: Url = eth_rpc_url_str.parse().unwrap();
+    let provider = ProviderBuilder::new().wallet(wallet).on_http(eth_rpc_url);
+
+    // Extract the journal from the receipt.
+    let onchain_journal = receipt.journal.bytes.clone();
+
+    // Encode the seal with the selector.
+    let onchain_seal = encode_seal(&receipt)?;
+
+    // build calldata
+    let calldata = VerifierContract::verifyCall {
+        seal: onchain_seal.into(),
+        journal: onchain_journal.into(),
+    };
+
+    // send tx to callback function: verifyAndFinalizeVotes
+    let contract = "0xEF2E59fB6640d5dFDD0e8533B01220896CfBc706"; // Replace with the actual contract address
+    let address_contract = contract.parse::<Address>().unwrap();
+
+    let tx = TransactionRequest::default()
+        .with_to(address_contract)
+        .with_call(&calldata);
+    let tx_hash = provider
+        .send_transaction(tx)
+        .await
+        .context("Failed to send transaction")?;
+    println!("Transaction sent with hash: {:?}", tx_hash);
+
     Ok(())
 }
-
-
-#[cfg(test)]
-mod tests {
-    pub const VERIFIER_TESTNET_HOLESKY_ADDRESS: &str = "0xEF2E59fB6640d5dFDD0e8533B01220896CfBc706";
-    use alloy_sol_types::SolType;
-    use crate::{PublicInput, call_verify_function, encode};
-    use tracing_subscriber::EnvFilter;
-    
-    #[tokio::test]
-    async fn test_onchain_verify_basic_vuln() -> Result<(), Box<dyn std::error::Error>> {
-        let filter = "info";
-        let env_filter = EnvFilter::new(filter);
-    
-        // Initialize the tracing subscriber with the environment filter
-        tracing_subscriber::fmt()
-            .with_env_filter(env_filter)
-            .init();
-
-        dotenv::dotenv().ok();
-        let private_key = std::env::var("WALLET_PRIV_KEY").expect("PRIVATE_KEY must be set in the .env file");
-
-        let journal = std::fs::read("../sc-owner/src/test/journal.bin")?;
-        let seal = std::fs::read("../sc-owner/src/test/onchain_seal.bin")?;
-
-        shared::log_info!("Journal size: {}", journal.len());
-        shared::log_info!("Seal size: {}", seal.len());
-        shared::log_info!("Journal: {:?}", journal);
-        shared::log_info!("Seal: {:?}", seal);
-
-        // Print journal and seal as hex
-        shared::log_info!("Journal hex: 0x{}", hex::encode(&journal));
-        shared::log_info!("Seal hex: 0x{}", hex::encode(&seal));
-
-        let input = <PublicInput as SolType>::abi_decode(&journal)
-            .expect("Impossible to decode journal.bin");
-
-        shared::log_info!("\n=====================");
-        shared::log_info!("PUBLIC INPUT DECODED");
-        shared::log_info!("=====================\n");
-
-        shared::log_info!("Exploit found: {}", input.exploitFound);
-        shared::log_info!(
-            "Program spec hash: 0x{}",
-            encode(input.programSpecHash)
-        );
-        shared::log_info!(
-            "Context state hash: 0x{}",
-            encode(input.contextStateHash)
-        );
-        shared::log_info!("Prover address: 0x{}", encode(input.proverAddress));
-
-        let _output = call_verify_function(
-            &private_key,
-            VERIFIER_TESTNET_HOLESKY_ADDRESS,
-            journal,
-            seal,
-        )
-        .await?;
-
-        shared::log_info!("✅ All tests passed! Valid proof verified on-chain.");
-
-        Ok(())
-    }
-}
-

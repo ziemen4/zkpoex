@@ -63,6 +63,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let contract_bytecode_file_imageid = "./bytecode/ImageID.bin";
     let contract_bytecode_deployment_imageid = fs::read_to_string(contract_bytecode_file_imageid)
         .expect("Failed to read contract bytecode file");
+    shared::log_info!(
+        "Deploying ImageID contract with bytecode: {}",
+        contract_bytecode_deployment_imageid
+    );
     let imageid_deploy_output =
         evm_utils::deploy_contract(&private_key, &contract_bytecode_deployment_imageid)?;
     let image_id = evm_utils::extract_contract_address(&imageid_deploy_output)

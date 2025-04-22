@@ -14,9 +14,7 @@ tokio = { version = "1", features = ["full"] }
 dotenv = "0.15"
 bytemuck = "1.14"
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
-alloy-sol-types = { version = "1.0.0", features = ["json"] }
-alloy-provider = { version = "0.14.0" }
-alloy-signer-local = { version = "0.14.0" }
-alloy-contract = { version = "0.14.0" }
+alloy = { version = "0.14", features = ["full"] }
+alloy-network = { version = "0.14" }
 url = { version = "2" }
 anyhow = "1.0"
