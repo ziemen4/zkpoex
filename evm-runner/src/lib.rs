@@ -9,11 +9,18 @@ use evm::{
 use shared::{
     conditions::{
         // Shared Conditions Structs
-        self, Condition, FixedCondition, RelativeCondition, InputDependantFixedCondition, InputDependantRelativeCondition,
+        self,
+        ArithmeticOperator,
+        Condition,
+        FixedCondition,
+        InputDependantFixedCondition,
+        InputDependantRelativeCondition,
         // Shared Methods Structs
-        MethodArgument, MethodSpec, 
+        MethodArgument,
+        MethodSpec,
         // Shared Operators Enums
-        Operator, ArithmeticOperator,
+        Operator,
+        RelativeCondition,
     },
     context,
     input::AccountData,
@@ -30,15 +37,14 @@ use hpke::{kem::X25519HkdfSha256, Kem, Serializable};
 use primitive_types::{H160, H256, U256};
 use rand::{rngs::StdRng, SeedableRng};
 use serde::Deserialize;
-use serde_json::from_str; 
+use serde_json::from_str;
 
 // Core/std/alloc utilities
-use core::str::FromStr;
 use crate::alloc::string::ToString;
+use core::str::FromStr;
 extern crate alloc;
 extern crate core;
 use alloc::{collections::BTreeMap, string::String, vec::Vec};
-
 
 #[derive(Debug, Deserialize)]
 pub struct DeserializeMemoryVicinity {
@@ -115,7 +121,12 @@ fn check_condition_op<T: PartialOrd + std::fmt::Debug>(
     first_val: T,
     second_val: T,
 ) -> bool {
-    shared::log_debug!("Checking condition {:?} {:?} {:?}", operator, first_val, second_val);
+    shared::log_debug!(
+        "Checking condition {:?} {:?} {:?}",
+        operator,
+        first_val,
+        second_val
+    );
     match operator {
         Operator::Eq => first_val == second_val,
         Operator::Neq => first_val != second_val,
@@ -274,7 +285,7 @@ fn check_input_dependant_fixed_condition(
     calldata: &str,
     method_arguments: Vec<MethodArgument>,
 ) -> bool {
-    // TODO: Use pre_state for test initial balance change during reentrancy iteration in fallback 
+    // TODO: Use pre_state for test initial balance change during reentrancy iteration in fallback
 
     // The state key is joined by '.', so split it
     let state_key = input_dependant_fixed_condition
@@ -573,8 +584,8 @@ fn verify_context_state(
     assert!(target_flag, "No account data contained the TARGET_ADDRESS");
 
     // Verify that the transaction initiator and recipient addresses were found.
-    let initiator = transaction_initiator_address
-        .expect("No account data contained the CALLER_ADDRESS");
+    let initiator =
+        transaction_initiator_address.expect("No account data contained the CALLER_ADDRESS");
     let recipient = transaction_recipient_address
         .expect("No account data contained the transaction recipient address");
 
@@ -611,10 +622,8 @@ pub fn run_evm(
         build_memory_stack_state(&context_state, &config, &mut snapshot_backend);
 
     // 1.2 Verify that the accounts are valid and included in the pre state
-    let (transaction_initiatior_address, transaction_recipient_address) = verify_context_state(
-        &context_state,
-        &pre_state,
-    );
+    let (transaction_initiatior_address, transaction_recipient_address) =
+        verify_context_state(&context_state, &pre_state);
     // 2. Prove that the initial state is valid wrt the program specification
     // 2.1 Verify that the program specification is valid
     verify_pre_state(&pre_state, &program_spec);
@@ -654,22 +663,16 @@ pub fn run_evm(
     // 6. Prepare outputs
     let mut outputs = Vec::new();
 
-    // 6.0 Exploit found and new condition found flag
+    // 6.1 Exploit found and new condition found flag
     outputs.push(exploit_found.to_string());
 
-    // 6.1 The hash of the program's specification used $SHA3(S)$
+    // 6.2 The hash of the program's specification used $SHA3(S)$
     let hashed_program_spec = conditions::hash_program_spec(&program_spec);
     outputs.push(encode(hashed_program_spec));
 
-    // 6.2 The hash of context state data $SHA3((a_1, b_1) || ... || (a_n, b_n))$
+    // 6.3 The hash of context state data $SHA3((a_1, b_1) || ... || (a_n, b_n))$
     let hashed_context_state = context::hash_context_state(&context_state);
     outputs.push(encode(hashed_context_state));
-
-    // 6.3 The address of the prover
-    // TODO: For now we assume that the prover is the transaction initiator
-    let prover_address = transaction_initiatior_address;
-    let prover_address_str = format!("{:x}", prover_address);
-    outputs.push(prover_address_str);
 
     outputs
 }
@@ -721,7 +724,7 @@ mod tests {
             context_state.clone(),
             program_spec.clone(),
             blockchain_settings,
-            U256::from_dec_str("0").unwrap(), 
+            U256::from_dec_str("0").unwrap(),
         );
         shared::log_info!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
@@ -733,11 +736,8 @@ mod tests {
         let hashed_context_data = context::hash_context_state(&context_state);
         shared::log_info!("Hashed context data: {:?}", encode(hashed_context_data));
         assert_eq!(result[2], encode(hashed_context_data));
-
-        let prover_address = "ca11e40000000000000000000000000000000000";
-        assert_eq!(result[3], prover_address);
     }
-    
+
     #[test]
     fn evm_find_new_exploit_basic_contract_erc20_works() {
         /*
@@ -762,7 +762,7 @@ mod tests {
 		 }
 		 "#;
 
-         let program_spec: Vec<MethodSpec> = {
+        let program_spec: Vec<MethodSpec> = {
             let file_path = "../shared/examples/basic-vulnerable/program_spec.json";
             let file_content = std::fs::read_to_string(file_path).expect("Unable to read file");
             serde_json::from_str(&file_content).expect("JSON deserialization failed")
@@ -778,7 +778,7 @@ mod tests {
             context_state.clone(),
             program_spec.clone(),
             blockchain_settings,
-            U256::from_dec_str("0").unwrap(), 
+            U256::from_dec_str("0").unwrap(),
         );
 
         shared::log_info!("Result: {:?}", result);
@@ -789,9 +789,6 @@ mod tests {
 
         let hashed_context_state = context::hash_context_state(&context_state);
         assert_eq!(result[2], encode(hashed_context_state));
-
-        let prover_address = "ca11e40000000000000000000000000000000000";
-        assert_eq!(result[3], prover_address);
     }
 
     #[test]
@@ -835,7 +832,7 @@ mod tests {
             context_state.clone(),
             program_spec.clone(),
             blockchain_settings,
-            U256::from_dec_str("0").unwrap(), 
+            U256::from_dec_str("0").unwrap(),
         );
         shared::log_info!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
@@ -845,11 +842,8 @@ mod tests {
 
         let hashed_context_data = context::hash_context_state(&context_state);
         assert_eq!(result[2], encode(hashed_context_data));
-
-        let prover_address = "ca11e40000000000000000000000000000000000";
-        assert_eq!(result[3], prover_address);
     }
-    
+
     #[test]
     fn evm_find_new_exploit_over_reentrancy_attack_works() {
         /*
@@ -893,7 +887,7 @@ mod tests {
             context_state.clone(),
             program_spec.clone(),
             blockchain_settings,
-            value
+            value,
         );
         shared::log_info!("Result: {:?}", result);
         assert_eq!(result[0], "true"); // exploit should be found
@@ -903,8 +897,5 @@ mod tests {
 
         let hashed_context_data = context::hash_context_state(&context_state);
         assert_eq!(result[2], encode(hashed_context_data));
-
-        let prover_address = "ca11e40000000000000000000000000000000000";
-        assert_eq!(result[3], prover_address);
     }
 }

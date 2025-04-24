@@ -32,6 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program_spec_file = matches
         .get_one::<std::path::PathBuf>("program-spec")
         .unwrap();
+    let send_eth_value = matches.get_one::<u64>("send-eth").unwrap();
     let verbose = matches.get_flag("verbose");
 
     let filter = if verbose {
@@ -45,9 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_filter = EnvFilter::new(filter);
 
     // Initialize the tracing subscriber with the environment filter
-    tracing_subscriber::fmt()
-        .with_env_filter(env_filter)
-        .init();
+    tracing_subscriber::fmt().with_env_filter(env_filter).init();
 
     // Read the context state file
     let context_state_json = fs::read_to_string(context_state_file).expect("Failed to read file");
@@ -93,6 +92,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .to_string()
         .trim_start_matches("0x")
         .to_string();
+
+    // Send ETH to the contract address
+    if *send_eth_value > 0 {
+        let send_eth_output =
+            evm_utils::send_eth(&private_key, &verifier_address, *send_eth_value).await?;
+        shared::log_info!("ETH sent to contract address: {}", send_eth_output);
+    } else {
+        shared::log_info!("No ETH sent to contract address.");
+    }
 
     shared::log_info!(
         "\nVerifier contract deployed at address: 0x{}",

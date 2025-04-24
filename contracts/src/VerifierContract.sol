@@ -52,6 +52,7 @@ contract VerifierContract {
     ///         It calls the external risc0 verifier, then decodes and checks the public input.
     ///         If all checks pass, it emits an ExploitFound event and transfers the reward.
     function verify(
+        address beneficiary,
         bytes calldata seal,
         bytes calldata journal
     ) public payable {
@@ -60,14 +61,15 @@ contract VerifierContract {
         (
             bool exploit_found,
             bytes32 claimed_program_spec_hash,
-            bytes32 claimed_context_state_hash,
-            address prover_address
-        ) = abi.decode(journal, (bool, bytes32, bytes32, address));
+            bytes32 claimed_context_state_hash
+        ) = abi.decode(journal, (bool, bytes32, bytes32));
 
         // Check that an exploit was indeed found.
         require(exploit_found, "Exploit not found");
 
         // Validate that the provided hashes (after keccak256) match the stored values.
+        // or equivalently, that the context state and program spec used to generate the proof
+        // are the same as the ones stored in the contract.
         require(
             claimed_program_spec_hash == program_spec_hash,
             "Invalid program spec hash"
@@ -78,8 +80,8 @@ contract VerifierContract {
         );
 
         // Emit event
-        emit ExploitFound(prover_address, address(this));
-        require(payable(prover_address).send(REWARD_IN_ETH), "Transfer failed");
+        emit ExploitFound(beneficiary, address(this));
+        require(payable(beneficiary).send(REWARD_IN_ETH), "Transfer failed");
     }
 
     receive() external payable {}

@@ -12,3 +12,4 @@ bytecode/*.abi
 calldata.txt
 journal.bin
 seal.bin
+receipt.bin

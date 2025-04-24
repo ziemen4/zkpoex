@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euxo pipefail
 
+on_fail() {
+  rc=$?
+  echo "❌ bench.sh aborted (exit $rc). Partial log:" >&2
+  sed -e 's/^/│ /' "$tmp" | tail -n 40 >&2    # last 40 lines, prefixed
+  exit $rc
+}
+
+safe_grep() {
+  local pattern=$1; shift
+  grep -Eo "$pattern" "$tmp" "$@" || true
+}
+
 # ─── 0) Inputs and defaults ────────────────────────────────────────────────
 FUNCTION="$1";    PARAMS="$2"
 CONTEXT_STATE="$3"; PROGRAM_SPEC="$4"
@@ -46,21 +58,24 @@ esac
 
 # ─── 3) Capture everything into a temp log ─────────────────────────────────
 tmp=$(mktemp)
-trap 'rc=$?; echo "❌ bench.sh failed (exit $rc); dumping log:" >&2; cat "$tmp" >&2; rm "$tmp"; exit $rc' ERR
+trap on_fail ERR
 
 export RISC0_PPROF_OUT="$PPROF_OUT"
 export RISC0_PPROF_ENABLE_INLINE_FUNCTIONS=yes
 export RISC0_DEV_MODE=1
 export RISC0_INFO=1
+export ETH_RPC_URL="http://localhost:8545"
 
 # run host + zkVM + time, tee both to console and into $tmp
 {
-  $tcmd cargo run --release -p host -- \
-    --function      "$FUNCTION" \
-    --params        "$PARAMS" \
-    --context-state "$CONTEXT_STATE" \
-    --program-spec  "$PROGRAM_SPEC" \
-    --value         "$VALUE"
+  $tcmd cargo run --release --bin host -- \
+    --function        "$FUNCTION" \
+    --params          "$PARAMS" \
+    --context-state   "$CONTEXT_STATE" \
+    --program-spec    "$PROGRAM_SPEC" \
+    --value           "$VALUE"        \
+    --verbose         "true"         \
+    --onchain-verify  "false"
 } 2>&1 | tee "$tmp"
 
 trap - ERR
@@ -85,16 +100,27 @@ else
 fi
 
 # ─── 5) Parse RISC0 zkVM logs ───────────────────────────────────────────────
-exec_time_ms=$(grep -Eo 'execution time: [0-9]+\.[0-9]+ms' "$tmp" \
-               | awk '{print $3}' | sed 's/ms//')
-segments=$(grep -Eo 'number of segments: [0-9]+' "$tmp" | awk '{print $4}')
-rz_total_cycles=$(grep -Eo '[0-9]+ total cycles' "$tmp" | awk '{print $1}')
-rz_user_cycles=$(grep -Eo '[0-9]+ user cycles' "$tmp" | awk '{print $1}')
-rz_user_pct=$(grep -Eo '[0-9]+\.[0-9]+%\)' "$tmp" | head -n1 | sed 's/)//')
-rz_paging_cycles=$(grep -Eo '[0-9]+ paging cycles' "$tmp" | awk '{print $1}')
-rz_paging_pct=$(grep -Eo '[0-9]+\.[0-9]+%\)' "$tmp" | sed -n '2p' | sed 's/)//')
-rz_reserved_cycles=$(grep -Eo '[0-9]+ reserved cycles' "$tmp" | awk '{print $1}')
-rz_reserved_pct=$(grep -Eo '[0-9]+\.[0-9]+%\)' "$tmp" | sed -n '3p' | sed 's/)//')
+exec_time_ms=$(
+  grep -Eo 'execution time: [0-9]+\.[0-9]+ms' "$tmp" \
+  | awk '{print $3}' | sed 's/ms//' || true
+)
+exec_time_ms=${exec_time_ms:-0}
+segments=$(safe_grep 'number of segments: [0-9]+' | awk '{print $4}')
+segments=${segments:-0}
+rz_total_cycles=$(safe_grep 'total cycles: [0-9]+' | awk '{print $3}')
+rz_total_cycles=${rz_total_cycles:-0}
+rz_user_cycles=$(safe_grep 'user cycles: [0-9]+' | awk '{print $3}')
+rz_user_cycles=${rz_user_cycles:-0}
+rz_user_pct=$(safe_grep 'user cycles: [0-9]+\.[0-9]+%\)' | sed 's/)//' | head -n1)
+rz_user_pct=${rz_user_pct:-0}
+rz_paging_cycles=$(safe_grep 'paging cycles: [0-9]+' | awk '{print $3}')
+rz_paging_cycles=${rz_paging_cycles:-0}
+rz_paging_pct=$(safe_grep 'paging cycles: [0-9]+\.[0-9]+%\)' | sed 's/)//' | head -n1)
+rz_paging_pct=${rz_paging_pct:-0}
+rz_reserved_cycles=$(safe_grep 'reserved cycles: [0-9]+' | awk '{print $3}')
+rz_reserved_cycles=${rz_reserved_cycles:-0}
+rz_reserved_pct=$(safe_grep 'reserved cycles: [0-9]+\.[0-9]+%\)' | sed 's/)//' | sed -n '3p')
+rz_reserved_pct=${rz_reserved_pct:-0}
 
 # ─── 6) Compute host CPU% & MEM% ──────────────────────────────────────────
 cpu_pct=$(awk -v u="$user" -v s="$sys" -v w="$wall" \

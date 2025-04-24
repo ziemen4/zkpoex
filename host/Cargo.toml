@@ -20,10 +20,14 @@ url = { version = "2" }
 anyhow = "1.0"
 bincode = "1.3"
 
+[lib]
+name = "host"
+path = "src/lib.rs"
+
 [[bin]]
 name = "host"
 path = "src/main.rs"
 
 [[bin]]
-name = "onchain-verifier"
-path = "src/onchain-verifier.rs"
+name = "onchain_verifier"
+path = "src/onchain_verifier.rs"

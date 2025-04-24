@@ -13,13 +13,12 @@ use shared::conditions::MethodSpec;
 use shared::input::AccountData;
 
 // Alloy: Solidity ABI definitions/encoding and Ethereum primitive types
-use alloy_sol_types::{sol, SolValue};
 use alloy_primitives::{Address, B256};
+use alloy_sol_types::{sol, SolValue};
 
 // Standard utility to parse from strings
-use std::str::FromStr;
 use primitive_types::U256;
-
+use std::str::FromStr;
 
 // Solidity ABI encoding for public input
 sol! {
@@ -27,7 +26,6 @@ sol! {
         bool exploitFound;
         bytes32 programSpecHash;
         bytes32 contextStateHash;
-        address proverAddress;
     }
 }
 
@@ -48,18 +46,24 @@ fn main() {
     let value: U256 = env::read();
 
     // Log input_json
-    let result = run_evm(&calldata, context_state, program_spec, &blockchain_settings, value);    
+    let result = run_evm(
+        &calldata,
+        context_state,
+        program_spec,
+        &blockchain_settings,
+        value,
+    );
 
     let exploit_found: bool = result[0] == "true";
-    let program_spec_hash: B256 = B256::from_str(&result[1]).expect("Invalid hex for program_spec_hash");
-    let context_state_hash: B256 = B256::from_str(&result[2]).expect("Invalid hex for context_state_hash");
-    let prover_address: Address = Address::from_str(&result[3]).expect("Invalid Ethereum address");
+    let program_spec_hash: B256 =
+        B256::from_str(&result[1]).expect("Invalid hex for program_spec_hash");
+    let context_state_hash: B256 =
+        B256::from_str(&result[2]).expect("Invalid hex for context_state_hash");
 
     let input = PublicInput {
         exploitFound: exploit_found,
         programSpecHash: program_spec_hash,
         contextStateHash: context_state_hash,
-        proverAddress: prover_address,
     };
 
     let encoded = PublicInput::abi_encode(&input);

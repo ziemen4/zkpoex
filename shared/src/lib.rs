@@ -185,23 +185,32 @@ pub mod utils {
                     .required(false)
                     .value_parser(clap::value_parser!(bool)),
             )
+            .arg(
+                Arg::new("onchain-verify")
+                    .short('o')
+                    .long("onchain-verify")
+                    .value_name("ONCHAIN_VERIFY")
+                    .help("Enable on-chain verification")
+                    .required(false)
+                    .value_parser(clap::value_parser!(bool)),
+            )
             .get_matches()
     }
 
     /// -------------------------------------------
     /// Parses CLI arguments and returns the matches for onchain-verifier.
     /// -------------------------------------------
-    pub fn parse_cli_args_onchain_verifier() -> clap::ArgMatches{
+    pub fn parse_cli_args_onchain_verifier() -> clap::ArgMatches {
         Command::new("zkpoex-cli")
             .version("1.0")
             .author("Ziemann, Galexela")
             .about("Generates zk proofs for Ethereum smart contract exploits")
             .arg(
-                Arg::new("smart-contract")
+                Arg::new("contract-address")
                     .short('s')
-                    .long("smart-contract")
-                    .value_name("SMART_CONTRACT")
-                    .help("Sets the address of the VerifierContract for the onchain verifier") 
+                    .long("contract-address")
+                    .value_name("CONTRACT_ADDRESS")
+                    .help("Sets the address of the VerifierContract for the onchain verifier")
                     .required(true),
             )
             .arg(
@@ -267,13 +276,26 @@ pub mod utils {
                     .required(false)
                     .value_parser(clap::value_parser!(bool)),
             )
+            .arg(
+                Arg::new("send-eth")
+                    .short('s')
+                    .long("send-eth")
+                    .value_name("SEND_ETH")
+                    .help("Sets the amount of ETH to send to the contract in wei")
+                    .required(false)
+                    .value_parser(clap::value_parser!(u64)),
+            )
             .get_matches()
     }
 }
 
 pub mod evm_utils {
+    use crate::{log_debug, log_info};
+    use anyhow::bail;
     use hex::FromHexError;
     use primitive_types::H256;
+    use risc0_zkvm::sha::Digestible;
+    use risc0_zkvm::InnerReceipt;
     use serde_json;
     use serde_json::from_str;
     use serde_json::Value;
@@ -283,10 +305,6 @@ pub mod evm_utils {
     use std::fs;
     use std::process::Command as ProcessCommand;
     use std::str;
-    use risc0_zkvm::{InnerReceipt};
-    use risc0_zkvm::sha::Digestible;
-    use anyhow::bail;
-    use crate::{log_info, log_debug};
 
     /// -------------------------------------------
     /// Executes a cast command and returns the output as a String
@@ -424,7 +442,7 @@ pub mod evm_utils {
                     "1000000000000000000",
                 ])?;
                 log_info!("1 Ether sent to contract: {}", contract_address);
-                
+
             }
             None => Err("Failed to extract contract address from deployment output".into()),
         }*/
@@ -470,7 +488,6 @@ pub mod evm_utils {
 
         Ok(deploy_output)
     }
-
 
     /// -------------------------------------------
     /// Extracts the contract address from cast output
@@ -599,7 +616,6 @@ pub mod evm_utils {
         Ok(seal)
     }
 
-
     /// -------------------------------------------
     /// Retrieves the balance of an Ethereum address
     /// -------------------------------------------
@@ -652,6 +668,24 @@ pub mod evm_utils {
         storage_map.insert(slot_hash, value_h256);
 
         Ok(storage_map)
+    }
+
+    pub async fn send_eth(
+        private_key: &str,
+        contract_address: &str,
+        value: u64,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let value_str = value.to_string();
+        let args = vec![
+            "send",
+            contract_address,
+            "--private-key",
+            private_key,
+            "--value",
+            &value_str,
+        ];
+        let output = run_cast_command(&args)?;
+        Ok(output)
     }
 }
 
@@ -973,8 +1007,8 @@ pub mod input {
     use alloc::string::String;
     use alloc::vec::Vec;
     use primitive_types::{H256, U256};
-    use serde::{Deserialize, Serialize};
     use serde::de::{self, Deserializer};
+    use serde::{Deserialize, Serialize};
     use std::str::FromStr;
 
     /// -------------------------------------------

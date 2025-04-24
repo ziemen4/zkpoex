@@ -14,7 +14,8 @@ BONSAI_API_URL := "https://api.bonsai.xyz/"
 # Risc0 Verifier Contract Address from https://dev.risczero.com/api/blockchain-integration/contracts/verifier (RiscZeroVerifierRouter)
 VERIFIER_ADDRESS_MAINNET := "0x8EaB2D97Dfce405A1692a21b3ff3A172d593D319"
 VERIFIER_ADDRESS_HOLESKY := "0xf70aBAb028Eb6F4100A24B203E113D94E87DE93C"
-VERIFIER_ADDRESS_SEPOLIA := "0x925d8331ddc0a1F0d96E68CF073DFE1d92b69187"
+# Local network uses HOLESKY address by default
+VERIFIER_ADDRESS_LOCAL := "0xf70aBAb028Eb6F4100A24B203E113D94E87DE93C"
 
 # -----------------------------------------------------------------------------
 # Compile Solidity Contracts
@@ -51,9 +52,11 @@ test-evm: compile-contract
 # Run verify test
 #
 # Parameters:
-#  network - Network identifier ("testnet", or "mainnet")
+#  network - Network identifier ("local", "testnet", or "mainnet")
+#  verbose - (Optional) "true" for verbose output, "false" for silent mode.
+#           Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-onchain-verify smart_contract network verbose="false": compile-contract
+onchain-verify contract_address network verbose="false": compile-contract
 	sh -c ' \
 	  if [ -z "$WALLET_PRIV_KEY" ]; then \
 	    echo "❌ WALLET_PRIV_KEY is required if you want to verify.\n"; \
@@ -70,8 +73,8 @@ onchain-verify smart_contract network verbose="false": compile-contract
 	    exit 1; \
 	  fi; \
 	  echo "ETH_RPC_URL: $ETH_RPC_URL \n"; \
-	  cargo run --release --bin onchain-verifier -- \
-	  	--smart-contract "{{smart_contract}}" \
+	  cargo run --release --bin onchain_verifier -- \
+	  	--contract-address "{{contract_address}}" \
 		--verbose "{{verbose}}" \
 	'
 # -----------------------------------------------------------------------------
@@ -81,10 +84,12 @@ onchain-verify smart_contract network verbose="false": compile-contract
 #   context_state  - Path to the context state JSON file
 #   program_spec   - Path to the program specification JSON file
 #   network        - Network identifier ("testnet", or "mainnet")
+#   send_eth       - (Optional) Value to be sent with the transaction (in wei).
+#                    Defaults to "0" if not provided.
 #   verbose        - (Optional) "true" for verbose output, "false" for silent mode.
 #                    Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-deploy-verifier context_state program_spec network verbose="false": ascii-art compile-contract
+deploy-verifier context_state program_spec network send_eth="0" verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "🚀 Starting verifier deploy"
 	@echo " - Context State: {{context_state}}"
@@ -99,7 +104,7 @@ deploy-verifier context_state program_spec network verbose="false": ascii-art co
 	  fi; \
 	  if [ "{{network}}" = "local" ]; then \
 	    export ETH_RPC_URL="{{ANVIL_RPC_URL}}"; \
-	    export VERIFIER_ADDRESS="{{VERIFIER_ADDRESS_HOLESKY}}"; \
+	    export VERIFIER_ADDRESS="{{VERIFIER_ADDRESS_LOCAL}}"; \
 	  elif [ "{{network}}" = "testnet" ]; then \
 	    export ETH_RPC_URL="{{HOLESKY_RPC_URL}}"; \
 	    export VERIFIER_ADDRESS="{{VERIFIER_ADDRESS_HOLESKY}}"; \
@@ -117,6 +122,7 @@ deploy-verifier context_state program_spec network verbose="false": ascii-art co
 	    --risc0-verifier-contract-address $VERIFIER_ADDRESS \
 	    --context-state "{{context_state}}" \
 	    --program-spec "{{program_spec}}" \
+		--send-eth "{{send_eth}}" \
 		--verbose "{{verbose}}" \
 	'
 	@echo "============================================================"
@@ -139,7 +145,7 @@ deploy-verifier context_state program_spec network verbose="false": ascii-art co
 #   verbose        - (Optional) "true" for verbose output, "false" for silent mode.
 #                    Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-prove function params context_state program_spec value network bonsai="false" verbose="false":
+prove function params context_state program_spec value network bonsai="false" onchain_verify="false" verbose="false":
 	@echo "============================================================"
 	@echo "🚀 Starting exploit proving"
 	@echo " - Function: {{function}}"
@@ -183,6 +189,7 @@ prove function params context_state program_spec value network bonsai="false" ve
 	    --program-spec "{{program_spec}}" \
 		--value "{{value}}" \
 		--verbose "{{verbose}}" \
+		--onchain-verify "{{onchain_verify}}" \
 	'
 	@echo "============================================================"
 	@echo "✅ Exploit verified successfully!"
@@ -203,15 +210,15 @@ prove function params context_state program_spec value network bonsai="false" ve
 #   verbose  - (Optional) "true" for verbose output, "false" for silent mode.
 #               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-basic-vulnerable-prove network bonsai="false" value="0" verbose="false": ascii-art compile-contract
+example-basic-vulnerable-prove network bonsai="false" value="0" onchain_verify="false" verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for basic vulnerable contract "
-	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai'"
+	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai' 'onchain_verify' 'verbose'"
 	@echo "============================================================"
 	just prove "exploit(bool)" "true" \
 		"./shared/examples/basic-vulnerable/context_state.json" \
 		"./shared/examples/basic-vulnerable/program_spec.json" \
-		"{{value}}" "{{network}}" "{{bonsai}}" "{{verbose}}"
+		"{{value}}" "{{network}}" "{{bonsai}}" "{{onchain_verify}}" "{{verbose}}"
 
 
 # -----------------------------------------------------------------------------
@@ -228,15 +235,15 @@ example-basic-vulnerable-prove network bonsai="false" value="0" verbose="false":
 #   verbose  - (Optional) "true" for verbose output, "false" for silent mode.
 #               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-over-under-flow-prove network bonsai="false" value="0" verbose="false": ascii-art compile-contract
+example-over-under-flow-prove network bonsai="false" value="0" onchain_verify="false" verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for over-under flow contract"
-	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai'"
+	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai' 'onchain_verify' 'verbose'"
 	@echo "============================================================"
 	just prove "withdraw(uint256)" "1001" \
 		"./shared/examples/over-under-flow/context_state.json" \
 		"./shared/examples/over-under-flow/program_spec.json" \
-		"{{value}}" "{{network}}" "{{bonsai}}" "{{verbose}}"
+		"{{value}}" "{{network}}" "{{bonsai}}" "{{onchain_verify}}" "{{verbose}}"
 
 # -----------------------------------------------------------------------------
 # Example: Reentrancy Proving
@@ -251,16 +258,16 @@ example-over-under-flow-prove network bonsai="false" value="0" verbose="false": 
 #   verbose  - (Optional) "true" for verbose output, "false" for silent mode.
 #               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-reentrancy-prove network bonsai="false" verbose="false": ascii-art compile-contract
+example-reentrancy-prove network bonsai="false" onchain_verify="false" verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for reentrancy contract"
-	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai'"
+	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai' 'onchain_verify' 'verbose'"
 	@echo "============================================================"
 	just prove "attack(uint256)" "1000000000000000000" \
 		"./shared/examples/reentrancy/context_state.json" \
 		"./shared/examples/reentrancy/program_spec.json" \
 		"10000000000000000000" \
-		"{{network}}" "{{bonsai}}" "{{verbose}}"
+		"{{network}}" "{{bonsai}}" "{{onchain_verify}}" "{{verbose}}"
 
 # -----------------------------------------------------------------------------
 # Prove Benchmark
@@ -343,5 +350,5 @@ ascii-art:
 	@echo "\033[36m                    | ∑∑                                    					\033[0m"; sleep 0.1
 	@echo "\033[36m                     \\∑∑ \033[3;37mv0.1.0\033[0m			                \033[0m"; sleep 0.1
 	@echo "\n"; sleep 0.1 
-	@echo "\033[3;90mDeveloped by: galexela & ziemann\033[0m            \033[3;90m Powered by Risc0			\033[0m" ; sleep 0.1
+	@echo "\033[3;90mDeveloped by: galexela & ziemann\033[0m            \033[3;90m Powered by Rust EVM & Risc0			\033[0m" ; sleep 0.1
 	@echo "\n"; sleep 0.1
