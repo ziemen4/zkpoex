@@ -53,7 +53,7 @@ test-evm: compile-contract
 # Parameters:
 #  network - Network identifier ("testnet", or "mainnet")
 # -----------------------------------------------------------------------------
-test-verify network: compile-contract
+onchain-verify smart_contract network verbose="false": compile-contract
 	sh -c ' \
 	  if [ -z "$WALLET_PRIV_KEY" ]; then \
 	    echo "❌ WALLET_PRIV_KEY is required if you want to verify.\n"; \
@@ -66,11 +66,13 @@ test-verify network: compile-contract
 	  elif [ "{{network}}" = "mainnet" ]; then \
 	    export ETH_RPC_URL="{{MAINNET_RPC_URL}}"; \
 	  else \
-	    echo "⚠️ Network is unknown, also you can not use local network for this test. ETH_RPC_URL not set.\n"; \
+	    echo "⚠️ Network is unknown or ETH_RPC_URL not set.\n"; \
 	    exit 1; \
 	  fi; \
 	  echo "ETH_RPC_URL: $ETH_RPC_URL \n"; \
-	  cargo test -p host -- --nocapture \
+	  cargo run --release --bin onchain-verifier -- \
+	  	--smart-contract "{{smart_contract}}" \
+		--verbose "{{verbose}}" \
 	'
 # -----------------------------------------------------------------------------
 # Deploy the verifier contract
@@ -105,11 +107,11 @@ deploy-verifier context_state program_spec network verbose="false": ascii-art co
 	    export ETH_RPC_URL="{{MAINNET_RPC_URL}}"; \
 	    export VERIFIER_ADDRESS="{{VERIFIER_ADDRESS_MAINNET}}"; \
 	  else \
-	    echo "⚠️ Network is unknown, also you can not use local network for this test. ETH_RPC_URL not set, no RiscZeroVerifierRouter for this network.\n"; \
+	    echo "⚠️ Network is unknown or ETH_RPC_URL not set, no RiscZeroVerifierRouter for this network.\n"; \
 	    exit 1; \
 	  fi; \
 	  echo "ETH_RPC_URL: $ETH_RPC_URL"; \
-	  echo "VERIFIER_ADDRESS: $VERIFIER_ADDRESS \n"; \
+	  echo "RISC0_VERIFIER_ADDRESS: $VERIFIER_ADDRESS \n"; \
 	  cargo run --release -p sc-owner -- \
 	    --private-key "$WALLET_PRIV_KEY" \
 	    --risc0-verifier-contract-address $VERIFIER_ADDRESS \
@@ -174,7 +176,7 @@ prove function params context_state program_spec value network bonsai="false" ve
 	    echo "Using local proving \n"; \
 	    export RISC0_DEV_MODE=1; \
 	  fi; \
-	  cargo run --release -p host -- \
+	  cargo run --release --bin host -- \
 	    --function "{{function}}" \
 	    --params "{{params}}" \
 	    --context-state "{{context_state}}" \

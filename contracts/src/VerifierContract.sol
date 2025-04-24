@@ -12,7 +12,7 @@ contract VerifierContract {
     /// @notice Image ID of the only zkVM binary to accept verification from.
     bytes32 public imageId;
     /// @notice Reward amount (in wei) for a valid exploit.
-    // uint256 public constant REWARD_IN_ETH = 1000;
+    uint256 public constant REWARD_IN_ETH = 1000;
 
     address public owner;
     IRiscZeroVerifier public immutable risc0_verifier_contract;
@@ -79,6 +79,8 @@ contract VerifierContract {
 
         // Emit event
         emit ExploitFound(prover_address, address(this));
-        // require(payable(prover_address).send(REWARD_IN_ETH), "Transfer failed");
+        require(payable(prover_address).send(REWARD_IN_ETH), "Transfer failed");
     }
+
+    receive() external payable {}
 }

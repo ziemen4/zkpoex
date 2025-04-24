@@ -17,3 +17,5 @@ serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.6" }
 hpke = { version = "0.12.0" }
 tracing = { version = "0.1" }
+risc0-zkvm = { version = "2.0.0" }
+anyhow = "1.0"

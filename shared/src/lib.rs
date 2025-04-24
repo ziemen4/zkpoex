@@ -132,7 +132,7 @@ pub mod utils {
     pub fn parse_cli_args_host() -> clap::ArgMatches {
         Command::new("zkpoex-cli")
             .version("1.0")
-            .author("Ziemann, Alessandro")
+            .author("Ziemann, Galexela")
             .about("Generates zk proofs for Ethereum smart contract exploits")
             .arg(
                 Arg::new("function")
@@ -189,12 +189,40 @@ pub mod utils {
     }
 
     /// -------------------------------------------
+    /// Parses CLI arguments and returns the matches for onchain-verifier.
+    /// -------------------------------------------
+    pub fn parse_cli_args_onchain_verifier() -> clap::ArgMatches{
+        Command::new("zkpoex-cli")
+            .version("1.0")
+            .author("Ziemann, Galexela")
+            .about("Generates zk proofs for Ethereum smart contract exploits")
+            .arg(
+                Arg::new("smart-contract")
+                    .short('s')
+                    .long("smart-contract")
+                    .value_name("SMART_CONTRACT")
+                    .help("Sets the address of the VerifierContract for the onchain verifier") 
+                    .required(true),
+            )
+            .arg(
+                Arg::new("verbose")
+                    .short('v')
+                    .long("verbose")
+                    .value_name("VERBOSE")
+                    .help("Enable verbose (debug‑level) logging")
+                    .required(false)
+                    .value_parser(clap::value_parser!(bool)),
+            )
+            .get_matches()
+    }
+
+    /// -------------------------------------------
     /// Parses CLI arguments and returns the matches for sc-owner crate.
     /// -------------------------------------------
     pub fn parse_cli_args_sc_owner() -> clap::ArgMatches {
         Command::new("zkpoex-cli")
             .version("1.0")
-            .author("Ziemann, Alessandro")
+            .author("Ziemann, Galexela")
             .about("Generates zk proofs for Ethereum smart contract exploits")
             .arg(
                 Arg::new("private-key")
@@ -255,6 +283,9 @@ pub mod evm_utils {
     use std::fs;
     use std::process::Command as ProcessCommand;
     use std::str;
+    use risc0_zkvm::{InnerReceipt};
+    use risc0_zkvm::sha::Digestible;
+    use anyhow::bail;
     use crate::{log_info, log_debug};
 
     /// -------------------------------------------
@@ -539,6 +570,35 @@ pub mod evm_utils {
         );
         Ok(blockchain_settings)
     }
+
+    /// -------------------------------------------
+    /// Encode the seal of the given receipt for use with EVM smart contract verifiers.
+    /// Appends the verifier selector, determined from the first 4 bytes of the verifier parameters
+    /// including the Groth16 verification key and the control IDs that commit to the RISC Zero
+    /// circuits.
+    /// -------------------------------------------
+    pub fn encode_seal(receipt: &risc0_zkvm::Receipt) -> Result<Vec<u8>, anyhow::Error> {
+        let seal = match receipt.inner.clone() {
+            InnerReceipt::Fake(receipt) => {
+                let seal = receipt.claim.digest().as_bytes().to_vec();
+                let selector = &[0xFFu8; 4];
+                let mut selector_seal = Vec::with_capacity(selector.len() + seal.len());
+                selector_seal.extend_from_slice(selector);
+                selector_seal.extend_from_slice(&seal);
+                selector_seal
+            }
+            InnerReceipt::Groth16(receipt) => {
+                let selector = &receipt.verifier_parameters.as_bytes()[..4];
+                let mut selector_seal = Vec::with_capacity(selector.len() + receipt.seal.len());
+                selector_seal.extend_from_slice(selector);
+                selector_seal.extend_from_slice(receipt.seal.as_ref());
+                selector_seal
+            }
+            _ => bail!("Unsupported receipt type"),
+        };
+        Ok(seal)
+    }
+
 
     /// -------------------------------------------
     /// Retrieves the balance of an Ethereum address
