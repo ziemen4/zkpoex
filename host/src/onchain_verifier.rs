@@ -2,7 +2,7 @@ use anyhow::Context;
 use std::fs;
 
 // Shared project modules
-use shared::{evm_utils::encode_seal, utils::parse_cli_args_onchain_verifier};
+use shared::{evm_utils::{encode_seal, get_onchain_links}, utils::parse_cli_args_onchain_verifier};
 
 use alloy::{
     network::{EthereumWallet, TransactionBuilder},
@@ -65,8 +65,8 @@ pub async fn verify_onchain(
         .send_transaction(tx)
         .await
         .context("Failed to send transaction")?;
-    let tx_hash = transaction_result.tx_hash();
-    println!("🌐 Transaction sent with hash: {:?}", tx_hash);
+    let tx_hash = transaction_result.tx_hash().to_string();
+    println!("\n🌐 Transaction sent with hash: {} \n", get_onchain_links(&tx_hash));
 
     // Return
     Ok(())

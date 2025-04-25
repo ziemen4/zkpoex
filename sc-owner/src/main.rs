@@ -10,7 +10,9 @@ use tokio;
 use shared::{
     conditions::{hash_program_spec, MethodSpec},
     context::hash_context_state,
-    evm_utils,
+    evm_utils::{
+        deploy_contract, deploy_verifier_contract, send_eth, extract_contract_address, get_onchain_links
+    },
     input::AccountData,
     utils,
 };
@@ -67,17 +69,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         contract_bytecode_deployment_imageid
     );
     let imageid_deploy_output =
-        evm_utils::deploy_contract(&private_key, &contract_bytecode_deployment_imageid)?;
-    let image_id = evm_utils::extract_contract_address(&imageid_deploy_output)
+        deploy_contract(&private_key, &contract_bytecode_deployment_imageid)?;
+    let image_id = extract_contract_address(&imageid_deploy_output)
         .expect("Failed to extract contract address")
         .to_string();
-    shared::log_info!("ImageID contract deployed at address: {}", image_id);
+    shared::log_info!("ImageID contract deployed at: {}", get_onchain_links(&image_id));
 
     // Deploy the Verifier contract
     let contract_bytecode_file_verifier = "./bytecode/VerifierContract.bin";
     let contract_bytecode_deployment_verifier = fs::read_to_string(contract_bytecode_file_verifier)
         .expect("Failed to read contract bytecode file");
-    let output = evm_utils::deploy_verifier_contract(
+    let output = deploy_verifier_contract(
         &private_key,
         &contract_bytecode_deployment_verifier,
         &risc0_verifier_contract_address,
@@ -87,24 +89,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Extract the contract address from the deployment output
-    let verifier_address = evm_utils::extract_contract_address(&output)
+    let verifier_address = extract_contract_address(&output)
         .expect("Failed to extract contract address")
-        .to_string()
-        .trim_start_matches("0x")
         .to_string();
 
     // Send ETH to the contract address
     if *send_eth_value > 0 {
         let send_eth_output =
-            evm_utils::send_eth(&private_key, &verifier_address, *send_eth_value).await?;
+            send_eth(&private_key, &verifier_address, *send_eth_value).await?;
         shared::log_info!("ETH sent to contract address: {}", send_eth_output);
     } else {
         shared::log_info!("No ETH sent to contract address.");
     }
 
     shared::log_info!(
-        "\nVerifier contract deployed at address: 0x{}",
-        verifier_address
+        "\nVerifier contract deployed at: {}",
+        get_onchain_links(&verifier_address)
     );
 
     Ok(())

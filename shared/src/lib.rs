@@ -305,6 +305,12 @@ pub mod evm_utils {
     use std::fs;
     use std::process::Command as ProcessCommand;
     use std::str;
+    use std::env;
+
+    const ANVIL_RPC_URL: &str = "http://localhost:8545";
+    const SEPOLIA_RPC_URL: &str = "https://ethereum-sepolia-rpc.publicnode.com";
+    const HOLESKY_RPC_URL: &str = "https://ethereum-holesky-rpc.publicnode.com";
+    const MAINNET_RPC_URL: &str = "https://ethereum-rpc.publicnode.com";
 
     /// -------------------------------------------
     /// Executes a cast command and returns the output as a String
@@ -586,6 +592,45 @@ pub mod evm_utils {
             block_base_fee_per_gas
         );
         Ok(blockchain_settings)
+    }
+
+    pub fn get_onchain_links(value: &str) -> String {
+        let eth_rpc_url = env::var("ETH_RPC_URL").unwrap_or_else(|_| "http://localhost:8545".to_string());
+
+        if !value.starts_with("0x") {
+            panic!("Value must start with '0x' to generate onchain links");
+        }
+
+        // If the RPC URL is Anvil, return the value as is as there is no explorer link
+        if eth_rpc_url == ANVIL_RPC_URL {
+            return value.to_string();
+        }
+
+        if eth_rpc_url == HOLESKY_RPC_URL {
+            if value.starts_with("0x") && value.len() == 42 {
+                return format!("https://holesky.etherscan.io/address/{}", value);
+            } else if value.starts_with("0x") && value.len() == 66 {
+                return format!("https://holesky.etherscan.io/tx/{}", value);
+            }
+        }
+
+        if eth_rpc_url == SEPOLIA_RPC_URL {
+            if value.starts_with("0x") && value.len() == 42 {
+                return format!("https://sepolia.etherscan.io/address/{}", value);
+            } else if value.starts_with("0x") && value.len() == 66 {
+                return format!("https://sepolia.etherscan.io/tx/{}", value);
+            }
+        }
+
+        if eth_rpc_url == MAINNET_RPC_URL {
+            if value.starts_with("0x") && value.len() == 42 {
+                return format!("https://etherscan.io/address/{}", value);
+            } else if value.starts_with("0x") && value.len() == 66 {
+                return format!("https://etherscan.io/tx/{}", value);
+            }
+        }
+        // Default case if the value doesn't match either address or txhash
+        value.to_string()
     }
 
     /// -------------------------------------------

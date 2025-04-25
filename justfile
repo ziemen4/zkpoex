@@ -77,6 +77,11 @@ onchain-verify contract_address network verbose="false": compile-contract
 	  	--contract-address "{{contract_address}}" \
 		--verbose "{{verbose}}" \
 	'
+	@echo "============================================================"
+	@echo "✅ Proof of exploit verified successfully!"
+	@echo "============================================================"
+	@echo "\n"
+
 # -----------------------------------------------------------------------------
 # Deploy the verifier contract
 #
@@ -95,6 +100,8 @@ deploy-verifier context_state program_spec network send_eth="0" verbose="false":
 	@echo " - Context State: {{context_state}}"
 	@echo " - Program Specification: {{program_spec}}"
 	@echo " - Network: {{network}}"
+	@echo " - ETH to send: {{send_eth}}"
+	@echo " - Verbose: {{verbose}}"
 	@echo "============================================================"
 
 	sh -c ' \
@@ -191,7 +198,7 @@ prove function params context_state program_spec value network bonsai="false" ve
 		--verbose "{{verbose}}" \
 	'
 	@echo "============================================================"
-	@echo "✅ Exploit verified successfully!"
+	@echo "✅ Proof of exploit verified successfully!"
 	@echo "============================================================"
 	@echo "\n"
 
