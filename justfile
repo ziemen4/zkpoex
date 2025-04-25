@@ -49,7 +49,7 @@ test-evm: compile-contract
 	cargo test -p evm-runner -- --nocapture --test-threads=1
 
 # -----------------------------------------------------------------------------
-# Run verify test
+# Run onchain proof verify
 #
 # Parameters:
 #  network - Network identifier ("local", "testnet", or "mainnet")
@@ -145,14 +145,14 @@ deploy-verifier context_state program_spec network send_eth="0" verbose="false":
 #   verbose        - (Optional) "true" for verbose output, "false" for silent mode.
 #                    Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-prove function params context_state program_spec value network bonsai="false" onchain_verify="false" verbose="false":
+prove function params context_state program_spec value network bonsai="false" verbose="false":
 	@echo "============================================================"
 	@echo "🚀 Starting exploit proving"
 	@echo " - Function: {{function}}"
 	@echo " - Params: {{params}}"
 	@echo " - Context State: {{context_state}}"
 	@echo " - Program Specification: {{program_spec}}"
-	@echo " - Value: {{value}} wei" 
+	@echo " - Value: {{value}} wei"
 	@echo " - Network: {{network}}"
 	@echo " - Bonsai: {{bonsai}}"
 	@echo " - Verbose: {{verbose}}"
@@ -189,7 +189,6 @@ prove function params context_state program_spec value network bonsai="false" on
 	    --program-spec "{{program_spec}}" \
 		--value "{{value}}" \
 		--verbose "{{verbose}}" \
-		--onchain-verify "{{onchain_verify}}" \
 	'
 	@echo "============================================================"
 	@echo "✅ Exploit verified successfully!"
@@ -210,15 +209,15 @@ prove function params context_state program_spec value network bonsai="false" on
 #   verbose  - (Optional) "true" for verbose output, "false" for silent mode.
 #               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-basic-vulnerable-prove network bonsai="false" value="0" onchain_verify="false" verbose="false": ascii-art compile-contract
+example-basic-vulnerable-prove network bonsai="false" value="0" verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for basic vulnerable contract "
-	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai' 'onchain_verify' 'verbose'"
+	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai' 'verbose'"
 	@echo "============================================================"
 	just prove "exploit(bool)" "true" \
 		"./shared/examples/basic-vulnerable/context_state.json" \
 		"./shared/examples/basic-vulnerable/program_spec.json" \
-		"{{value}}" "{{network}}" "{{bonsai}}" "{{onchain_verify}}" "{{verbose}}"
+		"{{value}}" "{{network}}" "{{bonsai}}" "{{verbose}}"
 
 
 # -----------------------------------------------------------------------------
@@ -235,15 +234,15 @@ example-basic-vulnerable-prove network bonsai="false" value="0" onchain_verify="
 #   verbose  - (Optional) "true" for verbose output, "false" for silent mode.
 #               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-over-under-flow-prove network bonsai="false" value="0" onchain_verify="false" verbose="false": ascii-art compile-contract
+example-over-under-flow-prove network bonsai="false" value="0" verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for over-under flow contract"
-	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai' 'onchain_verify' 'verbose'"
+	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai' 'verbose'"
 	@echo "============================================================"
 	just prove "withdraw(uint256)" "1001" \
 		"./shared/examples/over-under-flow/context_state.json" \
 		"./shared/examples/over-under-flow/program_spec.json" \
-		"{{value}}" "{{network}}" "{{bonsai}}" "{{onchain_verify}}" "{{verbose}}"
+		"{{value}}" "{{network}}" "{{bonsai}}" "{{verbose}}"
 
 # -----------------------------------------------------------------------------
 # Example: Reentrancy Proving
@@ -258,16 +257,16 @@ example-over-under-flow-prove network bonsai="false" value="0" onchain_verify="f
 #   verbose  - (Optional) "true" for verbose output, "false" for silent mode.
 #               Defaults to "false" if not provided.
 # -----------------------------------------------------------------------------
-example-reentrancy-prove network bonsai="false" onchain_verify="false" verbose="false": ascii-art compile-contract
+example-reentrancy-prove network bonsai="false" verbose="false": ascii-art compile-contract
 	@echo "============================================================"
 	@echo "⚙️  Just command for reentrancy contract"
-	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai' 'onchain_verify' 'verbose'"
+	@echo "⚙️  $ just prove 'function' 'params' 'context_state' 'program_spec' 'value' 'network' 'bonsai' 'verbose'"
 	@echo "============================================================"
 	just prove "attack(uint256)" "1000000000000000000" \
 		"./shared/examples/reentrancy/context_state.json" \
 		"./shared/examples/reentrancy/program_spec.json" \
 		"10000000000000000000" \
-		"{{network}}" "{{bonsai}}" "{{onchain_verify}}" "{{verbose}}"
+		"{{network}}" "{{bonsai}}" "{{verbose}}"
 
 # -----------------------------------------------------------------------------
 # Prove Benchmark
@@ -350,5 +349,5 @@ ascii-art:
 	@echo "\033[36m                    | ∑∑                                    					\033[0m"; sleep 0.1
 	@echo "\033[36m                     \\∑∑ \033[3;37mv0.1.0\033[0m			                \033[0m"; sleep 0.1
 	@echo "\n"; sleep 0.1 
-	@echo "\033[3;90mDeveloped by: galexela & ziemann\033[0m            \033[3;90m Powered by Rust EVM & Risc0			\033[0m" ; sleep 0.1
+	@echo "\033[3;90mDeveloped by: galexela & ziemann\033[0m - \033[3;90mPowered by Rust EVM & Risc0\033[0m"; sleep 0.1
 	@echo "\n"; sleep 0.1

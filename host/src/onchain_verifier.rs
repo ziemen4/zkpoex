@@ -22,7 +22,8 @@ sol! {
     }
 }
 
-fn load_receipt_binary(path: &str) -> risc0_zkvm::Receipt {
+#[allow(dead_code)]
+pub fn load_receipt_binary(path: &str) -> risc0_zkvm::Receipt {
     let data = fs::read(path).expect("Failed to read receipt file");
     bincode::deserialize(&data).expect("Failed to deserialize receipt")
 }
@@ -71,6 +72,7 @@ pub async fn verify_onchain(
     Ok(())
 }
 
+#[allow(dead_code)]
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     dotenv::dotenv().ok();

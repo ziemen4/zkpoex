@@ -13,7 +13,7 @@ use shared::conditions::MethodSpec;
 use shared::input::AccountData;
 
 // Alloy: Solidity ABI definitions/encoding and Ethereum primitive types
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{B256};
 use alloy_sol_types::{sol, SolValue};
 
 // Standard utility to parse from strings
