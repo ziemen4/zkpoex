@@ -1,22 +1,6 @@
-<div align="center" style="margin-bottom: 20px">
-  <img class="responsive-img" width="230px" height="341px" src="assets/zkpoex-logo.png">
+<div align="center">
+  <img src="assets/zkpoex-logo.png" width="230" height="341" style="max-width: 100%; height: auto;">
 </div>
-
-<style>
-
-  .responsive-img {
-    width: 230px;
-    height: 341px;
-    max-width: 100%;
-  }
-
-  @media (max-width: 600px) {
-    .responsive-img {
-      width: 150px;
-      height: 221px;
-    }
-  }
-</style>
 
 
 ![Version](https://img.shields.io/badge/v0.1.0-blue)
