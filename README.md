@@ -1,6 +1,23 @@
 <div align="center" style="margin-bottom: 20px">
-  <img width="230px" height="341px" src="assets/zkpoex-logo.png">
+  <img class="responsive-img" width="230px" height="341px" src="assets/zkpoex-logo.png">
 </div>
+
+<style>
+
+  .responsive-img {
+    width: 230px;
+    height: 341px;
+    max-width: 100%;
+  }
+
+  @media (max-width: 600px) {
+    .responsive-img {
+      width: 150px;
+      height: 221px;
+    }
+  }
+</style>
+
 
 ![Version](https://img.shields.io/badge/v0.1.0-blue)
 ![Keywords](https://img.shields.io/badge/keywords-zero--knowledge%20proofs%2C%20zkVM%2C%20ethereum%2C%20smart%20contract%20vulnerability-black)
@@ -136,6 +153,7 @@ zkpoex/
 ├── methods/              # Crate for various zk methods
 ├── evm-runner/           # Crate to run EVM-related tasks and tests
 ├── sc-owner/             # Crate to handle contract deployment and on-chain verification from the owner's perspective.
+├── scripts/              # Folder that contains the `bench.sh` for collecting performance metrics and profiling data for RISC Zero zkVM guest executions.
 ├── shared/               # It contains shared data structures, utility functions, and helper methods for working across the creates.
 ├── contracts/            # Solidity contracts and outputs (bytecode, storage layout)
 ├── bytecode/             # Bytecode from the contracts

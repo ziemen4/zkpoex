@@ -22,8 +22,10 @@ The crate performs the following tasks:
      Reads the bytecode from `./bytecode/ImageID.bin` and deploys the contract.
    - **Verifier Contract:**  
      Reads the bytecode from `./bytecode/VerifierContract.bin` and deploys it by linking the computed hashes, the provided RISC0 verifier contract address, and the address of the deployed ImageID contract.
+4. **Load the Verifier Contract:**
+     In order to pay the white hackers who will verify the proof of exploits, the contract must be pre-loaded with some ETH. 
 4. **Output Deployed Addresses:**  
-   The addresses of the deployed contracts are printed to the console.
+     The addresses of the deployed contracts are printed to the console.
 
 ---
 
@@ -64,10 +66,14 @@ Run the crate with the required CLI arguments. The following options must be pro
    Path to a JSON file containing the program specification.
 - **`{{network}}`**  
    Specifies the blockchain network to use (e.g., `mainnet`, `testnet` or `local`).
+- **`{{send_eth}}`** (optional)
+   The value of ETH (in wei) to send to the contract to preload it. By default, it's set to `0`.
+- **`{{verbose}}`** (optional)
+   Set it to `true` if you want to activate debug and info mode. By default, it's set to `false`.
 
 ### Example Command
 
 ```bash
-just deploy-verifier "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "testnet"
+just deploy-verifier "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "testnet" "500000000000000000"
 ```
 ---
