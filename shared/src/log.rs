@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 //! A lightweight logging facade. Downstream crates can use `shared::log_*!` macros without
 //! depending directly on the `tracing` crate.
 

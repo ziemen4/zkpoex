@@ -2,6 +2,7 @@
 name = "methods"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [build-dependencies]
 risc0-build = { version = "2.0.0" }

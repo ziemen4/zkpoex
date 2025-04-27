@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 //PLEASE NOTE: We can create other .rs files in the shared/src/ directory and import them here or in other modules if this "template" becomes too large.
 
 /////////////////////////////////////////////////////////////////////////////

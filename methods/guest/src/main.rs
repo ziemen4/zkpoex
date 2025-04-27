@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 // Needed for using alloc in no-std environments (e.g., zkVM guest)
 extern crate alloc;
 use alloc::{string::String, vec::Vec};

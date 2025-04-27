@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 // Core EVM-related dependencies
 use evm::{
     backend::{Backend, Basic, MemoryAccount, MemoryBackend, MemoryVicinity},

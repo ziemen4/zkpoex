@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 // Environment variable loader (.env support)
 use dotenv::dotenv;
 

@@ -17,14 +17,18 @@
 ## Table of Contents
 
 - [zkpoex](#zkpoex)
+  - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Setup \& Build](#setup--build)
   - [Usage](#usage)
-    - [Proving an Exploit](#proving-an-exploit)
-    - [Compiling Contracts](#compiling-contracts)
-    - [Running Tests for the EVM Runner](#running-tests-for-the-evm-runner)
+    - [Prover](#prover)
+      - [Proving an Exploit](#proving-an-exploit)
+      - [Compiling Contracts](#compiling-contracts)
+      - [Running Tests for the EVM Runner](#running-tests-for-the-evm-runner)
+    - [Smart contract owner](#smart-contract-owner)
+      - [Verifier Deployment](#verifier-deployment)
   - [Project Structure](#project-structure)
   - [License](#license)
 
@@ -80,14 +84,15 @@
 
 The project is configured as a Cargo workspace.
 
-The current configuration ensures optimized builds for faster execution of proofs.
+**The** current configuration ensures optimized builds for faster execution of proofs.
 
 ---
 
 ## Usage
 
+### Prover
 
-### Proving an Exploit
+#### Proving an Exploit
 
 To generate a zero-knowledge proof of an exploit, you can run:
 
@@ -101,7 +106,7 @@ For more details on running the prove logic, check out the [`host/README.md`](./
 
 ---
 
-### Compiling Contracts
+#### Compiling Contracts
 
 Contracts are written in Solidity. Use the provided `justfile` commands to compile them:
 
@@ -109,13 +114,9 @@ Contracts are written in Solidity. Use the provided `justfile` commands to compi
 just compile-contract
 ```
 
-This command is optional because with `just prove` it is fired automatically. It will:
-
-- Compile `BasicVulnerable.sol` and other contracts. The output is stored in the `bytecode` directory.
-
 ---
 
-### Running Tests for the EVM Runner
+#### Running Tests for the EVM Runner
 
 After compiling contracts, you can run the tests for the `evm-runner` package:
 
@@ -124,6 +125,16 @@ just test-evm
 ```
 
 ---
+
+### Smart contract owner
+
+#### Verifier Deployment
+
+To deploy a verifier contract, create context_state and program_spec for your project and then deploy. Example:
+
+```bash
+just deploy-verifier "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "testnet" "500000000000000000"
+```
 
 ## Project Structure
 
@@ -149,4 +160,4 @@ zkpoex/
 
 ## License
 
-[MIT License](LICENSE)
+[Apache](./LICENSE)
