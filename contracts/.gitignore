@@ -1,1 +1,8 @@
 lib/
+cache/
+out/*
+test/Elf.sol
+src/ImageID.sol
+.env
+scripts/target/
+broadcast/

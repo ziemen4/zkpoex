@@ -1,4 +1,15 @@
 .DS_Store
 Cargo.lock
 methods/guest/Cargo.lock
-target/
+target/**
+tests/Elf.sol
+bytecode/*.bin
+bytecode/*.bin-runtime
+bytecode/*.abi
+.env
+./journal.bin
+./seal.bin
+calldata.txt
+journal.bin
+seal.bin
+receipt.bin

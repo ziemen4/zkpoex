@@ -1,0 +1,38 @@
+[
+  {
+    "method_id": "16112c6c",
+    "conditions": [
+      {
+        "Fixed": {
+          "k_s": "7A46E70000000000000000000000000000000000.balance",
+          "op": "Gt",
+          "v": "0"
+        }
+      }
+    ],
+    "arguments": [
+      {
+        "argument_type": "bool",
+        "argument_name": "_exploit"
+      }
+    ]
+  },
+  {
+    "method_id": "d92dbd19",
+    "conditions": [
+      {
+        "Fixed": {
+          "k_s": "E4C2000000000000000000000000000000000000.storage.a070964ccc7e37c9aaee36054a704be4b9644cc02d84a3a67917c0baa3cee423",
+          "op": "Gt",
+          "v": "0"
+        }
+      }
+    ],
+    "arguments": [
+      {
+        "argument_type": "bool",
+        "argument_name": "_exploit"
+      }
+    ]
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "method_id": "2e1a7d4d",
+    "conditions": [
+      {
+        "Fixed": {
+          "k_s": "7A46E70000000000000000000000000000000000.storage.0000000000000000000000000000000000000000000000000000000000000000",
+          "op": "Neq",
+          "v": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      }
+    ],
+    "arguments": [
+      {
+        "argument_type": "uint256",
+        "argument_name": "amount"
+      }
+    ]
+  }
+]

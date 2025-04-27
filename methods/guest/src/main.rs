@@ -1,78 +1,76 @@
-extern crate alloc;
+// SPDX-License-Identifier: MIT
 
-use risc0_zkvm::guest::env;
+// Needed for using alloc in no-std environments (e.g., zkVM guest)
+extern crate alloc;
+use alloc::{string::String, vec::Vec};
+
+// EVM execution runner (host call into EVM logic)
 use evm_runner::run_evm;
-use evm_runner::conditions::Condition;
-use evm_runner::input::AccountData;
-use primitive_types::{U256, H160, H256};
-use alloc::{vec::Vec, collections::BTreeMap, string::String, format};
-use evm::{
-	Config,ExitReason, ExitSucceed,
-	backend::{
-		MemoryVicinity, MemoryAccount, MemoryBackend
-	},
-	executor::stack::{
-		StackSubstateMetadata, MemoryStackState, StackExecutor
-	}, Handler,
-};
-use serde::{Deserialize, Deserializer};
+
+// Guest environment for reading/writing data
+use risc0_zkvm::guest::env;
+
+// Shared data structures for EVM specs and context
+use shared::conditions::MethodSpec;
+use shared::input::AccountData;
+
+// Alloy: Solidity ABI definitions/encoding and Ethereum primitive types
+use alloy_primitives::{B256};
+use alloy_sol_types::{sol, SolValue};
+
+// Standard utility to parse from strings
+use primitive_types::U256;
 use std::str::FromStr;
-use serde_json::Value;
+
+// Solidity ABI encoding for public input
+sol! {
+    struct PublicInput {
+        bool exploitFound;
+        bytes32 programSpecHash;
+        bytes32 contextStateHash;
+    }
+}
 
 fn main() {
     let start = env::cycle_count();
 
     let calldata: String = env::read();
-    println!("Read calldata successfully");
-    println!("{:?}", calldata);
-    
-    let caller_data: AccountData = env::read();
-    println!("Read caller_data successfully");
-    println!("{:?}", caller_data);
-
-    let target_data: AccountData = env::read();
-    println!("Read target_data successfully");
-    println!("{:?}", target_data);
-
-    // TODO: See if we can deserialize directly into Vec<AccountData>, instead of String
-    let _context_data: String = env::read();
-    println!("Read context_data successfully");
-    println!("{:?}", _context_data);
-
-    // TODO: See if we can deserialize directly into Vec<Condition>, instead of String
+    let _context_state: String = env::read();
     let _program_spec: String = env::read();
-    println!("Read program_spec successfully");
-    println!("{:?}", _program_spec);
-
     let blockchain_settings: String = env::read();
-    println!("Read blockchain_settings successfully");
-    println!("{:?}", blockchain_settings);
 
-    let public_key: String = env::read();
-    println!("Read public_key successfully");
-    println!("{:?}", public_key);
+    // Deserialize context state
+    let context_state: Vec<AccountData> = serde_json::from_str(&_context_state).unwrap();
 
-    let program_spec: Vec<(Condition, String)> = serde_json::from_str(&_program_spec).unwrap();
-    println!("Converted program_spec successfully");
-    println!("{:?}", program_spec);
+    // Deserialize program spec
+    let program_spec: Vec<MethodSpec> = serde_json::from_str(&_program_spec).unwrap();
 
-    let context_data: Vec<AccountData> = serde_json::from_str(&_context_data).unwrap();
-    println!("Converted context_data successfully");
-    println!("{:?}", context_data);
+    let value: U256 = env::read();
 
     // Log input_json
     let result = run_evm(
-        &calldata, 
-        caller_data, 
-        target_data, 
-        context_data, 
-        program_spec, 
+        &calldata,
+        context_state,
+        program_spec,
         &blockchain_settings,
-        &public_key,
-        None,
+        value,
     );
-    env::commit(&result);
+
+    let exploit_found: bool = result[0] == "true";
+    let program_spec_hash: B256 =
+        B256::from_str(&result[1]).expect("Invalid hex for program_spec_hash");
+    let context_state_hash: B256 =
+        B256::from_str(&result[2]).expect("Invalid hex for context_state_hash");
+
+    let input = PublicInput {
+        exploitFound: exploit_found,
+        programSpecHash: program_spec_hash,
+        contextStateHash: context_state_hash,
+    };
+
+    let encoded = PublicInput::abi_encode(&input);
+    env::commit_slice(&encoded);
 
     let end = env::cycle_count();
-    eprintln!("my_operation_to_measure: {}", end - start);
+    shared::log_warn!("my_operation_to_measure: {}", end - start);
 }
