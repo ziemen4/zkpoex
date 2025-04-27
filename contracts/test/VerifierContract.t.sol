@@ -14,36 +14,36 @@ contract VerifierContractTest is Test {
     // Constants for the expected verifier fields.
     bytes32 constant TEST_PROGRAM_SPEC =
         0x1111111111111111111111111111111111111111111111111111111111111111;
-    bytes32 constant TEST_BYTECODE =
+    bytes32 constant TEST_CONTEXT_STATE =
         0x2222222222222222222222222222222222222222222222222222222222222222;
-    bytes32 constant TEST_CONTEXT_DATA =
-        0x3333333333333333333333333333333333333333333333333333333333333333;
-    address constant TARGET = address(0xdead);
 
     function setUp() public {
         bytes memory imageIDBytecode = type(ImageID).runtimeCode;
         address imageIDAddr = address(0x123456);
         vm.etch(imageIDAddr, imageIDBytecode);
 
+        // Deploy the mock verifier contract.
+        mockVerifier = new MockRiscZeroVerifier();
+        address mockVerifierAddress = address(mockVerifier);
+
         verifierContract = new VerifierContract(
-            TARGET,
+            mockVerifierAddress,
             TEST_PROGRAM_SPEC,
-            TEST_CONTEXT_DATA,
+            TEST_CONTEXT_STATE,
             imageIDAddr
         );
     }
 
 
     // The event as declared in VerifierContract.
-    event ExploitFound(
-        address indexed prover,
-        address indexed exploit_category,
-        uint256 reward
-    );
+    event ExploitFound(address indexed beneficiary, address indexed verifier);
 
     function test_exploit() public {
         // Fund the contract with the reward so that the send call succeeds.
         vm.deal(address(verifierContract), verifierContract.REWARD_IN_ETH());
+
+        // Beneficiary address for the reward.
+        address beneficiary = address(0x456);
 
         // Prepare a dummy seal (the mock verifier's verify does nothing).
         bytes memory dummySeal = hex"00";
@@ -52,28 +52,25 @@ contract VerifierContractTest is Test {
         // Note: The public input encodes:
         //   (bool exploit_found, bytes32 _program_spec_hash, bytes32 _bytecode_hash, bytes32 _context_data_hash, address _prover_address)
         bool exploit_found = true;
-        address prover = address(0x123);
         bytes memory publicInput = abi.encode(
             exploit_found,
             TEST_PROGRAM_SPEC,
-            TEST_CONTEXT_DATA,
-            prover
+            TEST_CONTEXT_STATE
         );
 
         // Expect the ExploitFound event.
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit(true, true, false, false);
         emit ExploitFound(
-            prover,
-            address(verifierContract),
-            verifierContract.REWARD_IN_ETH()
+            beneficiary,
+            address(verifierContract)
         );
 
         // Call verify; since the mock doesn't revert, all checks should pass.
-        verifierContract.verify(publicInput, dummySeal);
+        verifierContract.verify(beneficiary, dummySeal, publicInput);
 
         // Confirm that the prover received the reward.
         assertEq(
-            prover.balance,
+            beneficiary.balance,
             verifierContract.REWARD_IN_ETH(),
             "Prover should receive reward"
         );

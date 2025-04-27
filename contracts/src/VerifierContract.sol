@@ -21,7 +21,7 @@ contract VerifierContract {
     bytes32 public program_spec_hash;
     bytes32 public context_state_hash;
 
-    event ExploitFound(address indexed prover, address indexed verifier);
+    event ExploitFound(address indexed beneficiary, address indexed verifier);
 
     constructor(
         address _risc0_verifier_contract,
