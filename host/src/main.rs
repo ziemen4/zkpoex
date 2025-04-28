@@ -186,7 +186,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
 
-    println!("\nDo you want to verify the proof on-chain? [y/n]:");
+    println!("\nDo you want to verify the proof on-chain? You need to deploy VerifierContract first. [y/n]:");
     io::stdout().flush().unwrap();
     let mut output = String::new();
     io::stdin()

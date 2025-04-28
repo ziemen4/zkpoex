@@ -92,22 +92,9 @@ The project is configured as a Cargo workspace.
 
 ### Prover
 
-#### Proving an Exploit
-
-To generate a zero-knowledge proof of an exploit, you can run:
-
-```sh
-just prove
-```
-
-For more details on running the prove logic, check out the [`host/README.md`](./host/README.md).
-
-**Important**: Beware since the prover has very high requirements
-
----
-
 #### Compiling Contracts
 
+First, you have to compile all the contracts in the foundry project.
 Contracts are written in Solidity. Use the provided `justfile` commands to compile them:
 
 ```sh
@@ -126,6 +113,20 @@ just test-evm
 
 ---
 
+#### Proving an Exploit
+
+To generate a zero-knowledge proof of an exploit, you can run:
+
+```sh
+just prove
+```
+
+For more details on running the prove logic, check out the [`host/README.md`](./host/README.md).
+
+**Important**: Beware since the prover has very high requirements
+
+---
+
 ### Smart contract owner
 
 #### Verifier Deployment
@@ -135,6 +136,14 @@ To deploy a verifier contract, create context_state and program_spec for your pr
 ```bash
 just deploy-verifier "./shared/examples/basic-vulnerable/context_state.json" "./shared/examples/basic-vulnerable/program_spec.json" "testnet" "500000000000000000"
 ```
+
+For more details on this, check out the [`sc-owner/README.md`](./sc-owner/README.md).
+
+### Benchmarks
+
+If you want to collect performance metrics and profiling data for RISC Zero zkVM guest executions, check out the [`scripts/bench/README.md`](./scripts/bench/README.md). 
+
+**Please note:** currently, the benchmarking functions are not fully supported on Linux or other Unix-based systems.
 
 ## Project Structure
 
@@ -160,4 +169,4 @@ zkpoex/
 
 ## License
 
-[Apache](./LICENSE)
+[MIT](./LICENSE)
