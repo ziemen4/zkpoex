@@ -10,6 +10,15 @@
 
 **zkpoex** is a Rust-based toolkit for proving exploits using zero-knowledge proofs. Built on top of [risc0](https://risc0.com/), zkpoex leverages advanced cryptographic techniques to verify exploit execution without revealing sensitive details. The project is structured as a Cargo workspace with four main members: **host**, **methods**, **evm-runner** and **sc-owner**.
 
+Briefly, **zkpoex** as a protocol consists of two parties:
+
+The prover and the smart contract owner.
+
+The prover finds an exploit in the owner's smart contract and generates a zero-knowledge proof of the exploit execution. To do so, it shows that it knows some calldata that can be used to call the contract such that it breaks the contract's program specification. The prover can verify said proof and claim rewards automatically without need for a third party.
+
+The smart contract owner is responsible for deploying the verifier contract, setting up the program specification and defining the rewards for the prover.
+For more details, check out the [documentation](./docs/0.1.0/DOCS.md) and the following blogpost: [Trustless Bug Bounties with zkpoex: Proving Exploits without Revealing Them](https://ziemann.me/zkpoex/)
+
 ![zkpoex](assets/zkpoex.png)
 
 ---
