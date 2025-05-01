@@ -1,16 +1,41 @@
 <div align="center">
-  <img src="assets/zkpoex-logo.png" width="230" height="341" style="max-width: 100%; height: auto;">
+  <img src="assets/zkpoex-banner.png" width="300" >
 </div>
+<br />
+<p align="center">
+  <img src="https://img.shields.io/badge/v0.1.0-blue"></img>
+  <img src="https://img.shields.io/badge/keywords-zero--knowledge%20proofs%2C%20zkVM%2C%20ethereum%2C%20smart%20contract%20vulnerability-black"></img>
+</p>
+<br />
 
+<p align="center">
+  <a href="https://discord.gg/2CcG3nYC">
+    <img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord">
+  </a>
+  <a href="https://t.me/+YkcPPHLFz4dlODlk">
+    <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram">
+  </a>
+</p>
 
-![Version](https://img.shields.io/badge/v0.1.0-blue)
-![Keywords](https://img.shields.io/badge/keywords-zero--knowledge%20proofs%2C%20zkVM%2C%20ethereum%2C%20smart%20contract%20vulnerability-black)
+---
+
+<div align="center">
+
+[![Stargazers][stars-shield]][stars-url] [![Forks][forks-shield]][forks-url]
+[![Contributors][contributors-shield]][contributors-url]
+[![Issues][issues-shield]][issues-url]
+[![GPL-3.0 License][license-shield]][license-url]
+
+</div>
 
 # zkpoex
 
-**zkpoex** is a Rust-based toolkit for proving exploits using zero-knowledge proofs. Built on top of [risc0](https://risc0.com/), zkpoex leverages advanced cryptographic techniques to verify exploit execution without revealing sensitive details. The project is structured as a Cargo workspace with four main members: **host**, **methods**, **evm-runner** and **sc-owner**.
+**zkpoex** is a Rust-based toolkit for proving exploits using zero-knowledge proofs, specifically designed for **Ethereum** smart contracts. Built on top of [risc0](https://risc0.com/), zkpoex leverages advanced cryptographic techniques to verify exploit execution without revealing sensitive details.
 
-![zkpoex](assets/zkpoex.png)
+The project is structured as a Cargo workspace with four main members: **host**, **methods**, **evm-runner** and **sc-owner**.
+<div>
+  <img src="assets/zkpoex.png" width="500" >
+</div>
 
 ---
 
@@ -18,6 +43,9 @@
 
 - [zkpoex](#zkpoex)
   - [Table of Contents](#table-of-contents)
+  - [Protocol Overview](#protocol-overview)
+    - [The Prover](#the-prover) 
+    - [The Smart Contract Owner](#the-smart-contract-owner)
   - [Features](#features)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -31,6 +59,32 @@
       - [Verifier Deployment](#verifier-deployment)
   - [Project Structure](#project-structure)
   - [License](#license)
+
+---
+
+
+## Protocol Overview
+
+zkpoex as a protocol consists of two parties:
+
+- **The prover**
+- **The smart contract owner**
+
+### The Prover
+
+The prover finds an exploit in the owner's smart contract and generates a zero-knowledge proof of the exploit execution. To do so, it shows that it knows some calldata that can be used to call the contract such that it breaks the contract's program specification.
+
+The prover can verify said proof and claim rewards automatically **without need for a third party**.
+
+### The Smart Contract Owner
+
+The smart contract owner is responsible for:
+
+- Deploying the verifier contract
+- Setting up the program specification
+- Defining the rewards for the prover
+
+For more details, check out the [documentation](./docs/0.1.0/DOCS.md) and the following blogpost: [Trustless Bug Bounties with zkpoex: Proving Exploits without Revealing Them](https://ziemann.me/zkpoex/).
 
 ---
 
@@ -170,3 +224,14 @@ zkpoex/
 ## License
 
 [MIT](./LICENSE)
+
+[contributors-shield]: https://img.shields.io/github/contributors/ziemen4/zkpoex
+[contributors-url]: https://github.com/ziemen4/zkpoex/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/ziemen4/zkpoex
+[forks-url]: https://github.com/ziemen4/zkpoex/network/members
+[stars-shield]: https://img.shields.io/github/stars/ziemen4/zkpoex
+[stars-url]: https://github.com/ziemen4/zkpoex/stargazers
+[issues-shield]: https://img.shields.io/github/issues/ziemen4/zkpoex
+[issues-url]: https://github.com/ziemen4/zkpoex/issues
+[license-shield]: https://img.shields.io/github/license/ziemen4/zkpoex?logoColor=%23fff&color=blue
+[license-url]: https://github.com/ziemen4/zkpoex/blob/master/LICENSE
