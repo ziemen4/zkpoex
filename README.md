@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/zkpoex-banner.png" width="400" height="200" style="max-width: 100%; height: auto;">
+  <img src="assets/zkpoex-banner.png" width="300" >
 </div>
 <br />
 <p align="center">
@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://discord.gg/2CcG3nYC">
-    <img src="https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white" alt="Discord">
+    <img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord">
   </a>
   <a href="https://t.me/+YkcPPHLFz4dlODlk">
     <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram">
@@ -30,18 +30,12 @@
 
 # zkpoex
 
-**zkpoex** is a Rust-based toolkit for proving exploits using zero-knowledge proofs. Built on top of [risc0](https://risc0.com/), zkpoex leverages advanced cryptographic techniques to verify exploit execution without revealing sensitive details. The project is structured as a Cargo workspace with four main members: **host**, **methods**, **evm-runner** and **sc-owner**.
+**zkpoex** is a Rust-based toolkit for proving exploits using zero-knowledge proofs, specifically designed for **Ethereum** smart contracts. Built on top of [risc0](https://risc0.com/), zkpoex leverages advanced cryptographic techniques to verify exploit execution without revealing sensitive details.
 
-Briefly, **zkpoex** as a protocol consists of two parties:
-
-The prover and the smart contract owner.
-
-The prover finds an exploit in the owner's smart contract and generates a zero-knowledge proof of the exploit execution. To do so, it shows that it knows some calldata that can be used to call the contract such that it breaks the contract's program specification. The prover can verify said proof and claim rewards automatically without need for a third party.
-
-The smart contract owner is responsible for deploying the verifier contract, setting up the program specification and defining the rewards for the prover.
-For more details, check out the [documentation](./docs/0.1.0/DOCS.md) and the following blogpost: [Trustless Bug Bounties with zkpoex: Proving Exploits without Revealing Them](https://ziemann.me/zkpoex/)
-
-![zkpoex](assets/zkpoex.png)
+The project is structured as a Cargo workspace with four main members: **host**, **methods**, **evm-runner** and **sc-owner**.
+<div>
+  <img src="assets/zkpoex.png" width="500" >
+</div>
 
 ---
 
@@ -49,6 +43,9 @@ For more details, check out the [documentation](./docs/0.1.0/DOCS.md) and the fo
 
 - [zkpoex](#zkpoex)
   - [Table of Contents](#table-of-contents)
+  - [Protocol Overview](#protocol-overview)
+    - [The Prover](#the-prover) 
+    - [The Smart Contract Owner](#the-smart-contract-owner)
   - [Features](#features)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -62,6 +59,32 @@ For more details, check out the [documentation](./docs/0.1.0/DOCS.md) and the fo
       - [Verifier Deployment](#verifier-deployment)
   - [Project Structure](#project-structure)
   - [License](#license)
+
+---
+
+
+## Protocol Overview
+
+zkpoex as a protocol consists of two parties:
+
+- **The prover**
+- **The smart contract owner**
+
+### The Prover
+
+The prover finds an exploit in the owner's smart contract and generates a zero-knowledge proof of the exploit execution. To do so, it shows that it knows some calldata that can be used to call the contract such that it breaks the contract's program specification.
+
+The prover can verify said proof and claim rewards automatically **without need for a third party**.
+
+### The Smart Contract Owner
+
+The smart contract owner is responsible for:
+
+- Deploying the verifier contract
+- Setting up the program specification
+- Defining the rewards for the prover
+
+For more details, check out the [documentation](./docs/0.1.0/DOCS.md) and the following blogpost: [Trustless Bug Bounties with zkpoex: Proving Exploits without Revealing Them](https://ziemann.me/zkpoex/).
 
 ---
 
