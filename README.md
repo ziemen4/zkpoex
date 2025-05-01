@@ -1,10 +1,32 @@
 <div align="center">
-  <img src="assets/zkpoex-logo.png" width="230" height="341" style="max-width: 100%; height: auto;">
+  <img src="assets/zkpoex-banner.png" width="400" height="200" style="max-width: 100%; height: auto;">
 </div>
+<br />
+<p align="center">
+  <img src="https://img.shields.io/badge/v0.1.0-blue"></img>
+  <img src="https://img.shields.io/badge/keywords-zero--knowledge%20proofs%2C%20zkVM%2C%20ethereum%2C%20smart%20contract%20vulnerability-black"></img>
+</p>
+<br />
 
+<p align="center">
+  <a href="https://discord.gg/2CcG3nYC">
+    <img src="https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white" alt="Discord">
+  </a>
+  <a href="https://t.me/+YkcPPHLFz4dlODlk">
+    <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram">
+  </a>
+</p>
 
-![Version](https://img.shields.io/badge/v0.1.0-blue)
-![Keywords](https://img.shields.io/badge/keywords-zero--knowledge%20proofs%2C%20zkVM%2C%20ethereum%2C%20smart%20contract%20vulnerability-black)
+---
+
+<div align="center">
+
+[![Stargazers][stars-shield]][stars-url] [![Forks][forks-shield]][forks-url]
+[![Contributors][contributors-shield]][contributors-url]
+[![Issues][issues-shield]][issues-url]
+[![GPL-3.0 License][license-shield]][license-url]
+
+</div>
 
 # zkpoex
 
@@ -179,3 +201,14 @@ zkpoex/
 ## License
 
 [MIT](./LICENSE)
+
+[contributors-shield]: https://img.shields.io/github/contributors/ziemen4/zkpoex
+[contributors-url]: https://github.com/ziemen4/zkpoex/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/ziemen4/zkpoex
+[forks-url]: https://github.com/ziemen4/zkpoex/network/members
+[stars-shield]: https://img.shields.io/github/stars/ziemen4/zkpoex
+[stars-url]: https://github.com/ziemen4/zkpoex/stargazers
+[issues-shield]: https://img.shields.io/github/issues/ziemen4/zkpoex
+[issues-url]: https://github.com/ziemen4/zkpoex/issues
+[license-shield]: https://img.shields.io/github/license/ziemen4/zkpoex?logoColor=%23fff&color=blue
+[license-url]: https://github.com/ziemen4/zkpoex/blob/master/LICENSE
