@@ -11,6 +11,8 @@ contract VerifierContractTest is Test {
     MockRiscZeroVerifier public mockVerifier;
     address public imageID;
 
+    address public owner = address(0x123);
+
     // Constants for the expected verifier fields.
     bytes32 constant TEST_PROGRAM_SPEC =
         0x1111111111111111111111111111111111111111111111111111111111111111;
@@ -26,12 +28,14 @@ contract VerifierContractTest is Test {
         mockVerifier = new MockRiscZeroVerifier();
         address mockVerifierAddress = address(mockVerifier);
 
+        vm.startPrank(owner);
         verifierContract = new VerifierContract(
             mockVerifierAddress,
             TEST_PROGRAM_SPEC,
             TEST_CONTEXT_STATE,
             imageIDAddr
         );
+        vm.stopPrank();
     }
 
 
@@ -82,6 +86,7 @@ contract VerifierContractTest is Test {
         bytes32 newContextData = 0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;
 
         // Update the verifier fields (only the owner can do this).
+        vm.prank(owner);
         verifierContract.updateVerifierFields(
             newProgramSpec,
             newContextData
@@ -98,5 +103,48 @@ contract VerifierContractTest is Test {
             newContextData,
             "Context data hash should update"
         );
+    }
+
+    function test_lock() public {
+        // Test locking by non-owner
+        vm.prank(address(0x789));
+        vm.expectRevert();
+        verifierContract.lock();
+    }
+
+    function test_unlock() public {
+        // First lock the contract
+        vm.prank(owner);
+        verifierContract.lock();
+
+        // Test unlocking by non-owner
+        vm.prank(address(0x789));
+        vm.expectRevert();
+        verifierContract.unlock();
+    }
+
+    function test_doubleVerification() public {
+        // Fund the contract
+        vm.deal(address(verifierContract), verifierContract.REWARD_IN_ETH() * 2);
+        
+        address beneficiary = address(0x456);
+        bytes memory dummySeal = hex"00";
+        
+        // Build the public input
+        bool exploit_found = true;
+        bytes memory publicInput = abi.encode(
+            exploit_found,
+            TEST_PROGRAM_SPEC,
+            TEST_CONTEXT_STATE
+        );
+
+        // First verification should succeed
+        vm.expectEmit(true, true, false, false);
+        emit ExploitFound(beneficiary, address(verifierContract));
+        verifierContract.verify(beneficiary, dummySeal, publicInput);
+        
+        // Second verification should fail due to contract being locked
+        vm.expectRevert("Contract is locked for exploit proof verification");
+        verifierContract.verify(beneficiary, dummySeal, publicInput);
     }
 }
