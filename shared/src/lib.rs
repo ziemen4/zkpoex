@@ -12,7 +12,7 @@ pub use tracing;
 pub mod log;
 
 pub mod utils {
-    use crate::conditions::{Condition, FixedCondition, Operator};
+    use crate::conditions::{Condition, FixedCondition, Operator, Word256};
     use clap::{Arg, Command};
     use primitive_types::{H256, U256};
     use std::path::PathBuf;
@@ -59,6 +59,26 @@ pub mod utils {
         }
     }
 
+    /// Convert the literal on the right-hand side into our unified 256-bit type.
+    ///
+    /// * Decimal like `"1000"` → `Word256::Uint(1000)`  
+    /// * Hex starting with `"0x"` (or `"0X"`) → `Word256::Hash(0x…)`
+    fn parse_word256(lit: &str) -> Word256 {
+        if lit.starts_with("0x") || lit.starts_with("0X") {
+            use std::str::FromStr;
+            Word256::Hash(
+                H256::from_str(lit)
+                    .expect("hex literal must be 0x-prefixed and 64 hex chars long"),
+            )
+        } else {
+            Word256::Uint(
+                U256::from_dec_str(lit)
+                    .expect("decimal literal must fit into 256 bits"),
+            )
+        }
+    }
+
+
     /// -------------------------------------------
     /// Parses the condition string and returns a Condition struct.
     /// Example: "balance > 0" in the CLI -> Condition::Fixed(FixedCondition { k_s: "address.balance", op: Operator::Gt, v: 0 })
@@ -79,7 +99,7 @@ pub mod utils {
             "!=" => Operator::Neq,
             _ => panic!("Unsupported operator: {}", parts[1]),
         };
-        let value = U256::from_dec_str(parts[2]).expect("Invalid value in condition");
+        let value = parse_word256(parts[2]);
 
         if key.starts_with("storage") {
             let storage_key = key.trim_start_matches("storage.");
@@ -744,13 +764,29 @@ pub mod conditions {
     extern crate alloc;
     extern crate core;
 
+    use std::str::FromStr;
     use alloc::string::String;
     use alloc::vec::Vec;
     use ethereum_types::{H160, H256};
     use primitive_types::U256;
-    use serde::{Deserialize, Serialize};
+    use serde::{Serialize, Deserialize, Serializer, Deserializer};
     use sha2::Digest;
     use sha3::Keccak256;
+
+    /// Any 256-bit word that may come out of state or user-supplied JSON.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Word256 {
+        Uint(U256),
+        Hash(H256),
+    }
+
+    impl From<U256> for Word256 {
+        fn from(u: U256) -> Self { Word256::Uint(u) }
+    }
+
+    impl From<H256> for Word256 {
+        fn from(h: H256) -> Self { Word256::Hash(h) }
+    }
 
     /// -------------------------------------------
     /// Defines the comparison operators for conditions
@@ -785,7 +821,7 @@ pub mod conditions {
     pub struct FixedCondition {
         pub k_s: String,  // State key
         pub op: Operator, // Operation
-        pub v: U256,      // Expected value
+        pub v: Word256,      // Expected value
     }
 
     /// -------------------------------------------
@@ -798,7 +834,7 @@ pub mod conditions {
         pub op: Operator,                         // Operation
         pub k_s_prime: String,                    // End state key
         pub value_op: Option<ArithmeticOperator>, // Optional aritmetic operator for the value
-        pub v: Option<U256>,                      // Optional value
+        pub v: Option<Word256>,                      // Optional value
     }
 
     /// -------------------------------------------
@@ -855,6 +891,30 @@ pub mod conditions {
         pub argument_name: String,
     }
 
+    impl Serialize for Word256 {
+        fn serialize<S>(&self, ser: S) -> Result<S::Ok, S::Error>
+        where S: Serializer {
+            match self {
+                Word256::Uint(u) => ser.serialize_str(&u.to_string()),      // decimal
+                Word256::Hash(h) => ser.serialize_str(&format!("{:#x}", h)), // 0x… hex
+            }
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Word256 {
+    fn deserialize<D>(de: D) -> Result<Self, D::Error>
+    where D: Deserializer<'de> {
+        let s: &str = <&str>::deserialize(de)?;
+        if let Ok(u) = U256::from_dec_str(s) {
+            Ok(Word256::Uint(u))
+        } else {
+            // treat anything else as 0x… hex -string H256
+            let h = H256::from_str(s).map_err(serde::de::Error::custom)?;
+            Ok(Word256::Hash(h))
+        }
+    }
+}
+
     /// -------------------------------------------
     /// Hashes a program specification using Keccak256
     /// -------------------------------------------
@@ -899,7 +959,10 @@ pub mod conditions {
         });
 
         let mut v_bytes = [0u8; 32]; // U256 is 32 bytes
-        cond.v.to_little_endian(&mut v_bytes);
+        match cond.v {
+            Word256::Uint(u) => u.to_little_endian(&mut v_bytes),
+            Word256::Hash(h) => v_bytes.copy_from_slice(h.as_bytes()), // already 32 bytes
+        }
         serialized.extend(&v_bytes); // 8-byte little-endian
         serialized
     }
