@@ -17,6 +17,7 @@ use shared::{
         FixedCondition,
         InputDependantFixedCondition,
         InputDependantRelativeCondition,
+        Word256,
         // Shared Methods Structs
         MethodArgument,
         MethodSpec,
@@ -82,6 +83,37 @@ const RESERVED_ARBITRARY_ADDRESSES: (&str, &str) = (
 // Address `0xE4C2000000000000000000000000000000000000` is reserved for the `ContextTemplateERC20` contract.
 const RESERVED_TEMPLATE_ADDRESSES: [&str; 1] = ["E4C2000000000000000000000000000000000000"];
 
+/// Helper: always gives the numeric interpretation of a Word256.
+fn as_u256(w: Word256) -> U256 {
+    match w {
+        Word256::Uint(u) => u,
+        Word256::Hash(h) => U256::from_big_endian(h.as_bytes()),
+    }
+}
+
+fn token_to_word256(tok: &Token) -> Word256 {
+    match tok {
+        Token::Uint(u)      => Word256::Uint(*u),
+        Token::Bool(b)      => Word256::Uint(U256::from(*b as u8)),
+        Token::Address(a)   => {
+            // TODO: See if its better to use a different representation (H160/H256)
+            // We represent addresses as Uint with 12 leading zeros
+            let mut buf = [0u8; 32];
+            buf[12..].copy_from_slice(a.as_bytes());
+            Word256::Uint(U256::from_big_endian(&buf))
+        }
+        Token::FixedBytes(bs) | Token::Bytes(bs) => {
+            // TODO: See what supporting more than 32 bytes could imply
+            // For now, only support byte arrays up to 32 bytes
+            assert!(bs.len() <= 32, "byte array longer than 32 bytes");
+            let mut buf = [0u8; 32];
+            buf[32 - bs.len()..].copy_from_slice(bs);
+            Word256::Hash(H256::from(buf))
+        }
+        other => panic!("Unsupported ABI token in input: {:?}", other),
+    }
+}
+
 // This function generates a new keypair (private key and public key) for the chosen KEM.
 pub fn generate_keypair(seed: &[u8; 32]) -> (String, String) {
     // Create a deterministic RNG from the seed
@@ -118,24 +150,41 @@ pub fn decode_calldata(
     ethabi::decode(&params, args_data).map_err(Into::into)
 }
 
-fn check_condition_op<T: PartialOrd + std::fmt::Debug>(
+/// Returns `true` if the condition is satisfied.
+/// * For `Uint` ↔ `Uint` we keep full ordering support.
+/// * For `Hash` ↔ `Hash` we only honour `Eq`/`Neq`; the rest will `panic!`.
+fn check_condition_op(
     operator: &Operator,
-    first_val: T,
-    second_val: T,
+    lhs: Word256,
+    rhs: Word256,
 ) -> bool {
     shared::log_debug!(
         "Checking condition {:?} {:?} {:?}",
         operator,
-        first_val,
-        second_val
+        lhs,
+        rhs
     );
-    match operator {
-        Operator::Eq => first_val == second_val,
-        Operator::Neq => first_val != second_val,
-        Operator::Gt => first_val > second_val,
-        Operator::Ge => first_val >= second_val,
-        Operator::Lt => first_val < second_val,
-        Operator::Le => first_val <= second_val,
+
+    match (lhs, rhs) {
+        (Word256::Uint(a), Word256::Uint(b)) => match operator {
+            Operator::Eq  => a == b,
+            Operator::Neq => a != b,
+            Operator::Gt  => a >  b,
+            Operator::Ge  => a >= b,
+            Operator::Lt  => a <  b,
+            Operator::Le  => a <= b,
+        },
+
+        (l, r) => match operator {
+            Operator::Eq  => l == r,                 // byte-wise
+            Operator::Neq => l != r,
+            // If a condition is comparing between H256, we interpret it
+            // as big-endian unsigned integers (as EVM does).
+            Operator::Gt  => as_u256(l) >  as_u256(r),
+            Operator::Ge  => as_u256(l) >= as_u256(r),
+            Operator::Lt  => as_u256(l) <  as_u256(r),
+            Operator::Le  => as_u256(l) <= as_u256(r),
+        },
     }
 }
 
@@ -171,7 +220,7 @@ fn get_account_from_state(state: &MemoryStackState<MemoryBackend>, address: H160
     state.basic(address)
 }
 
-fn get_state_value(state: &MemoryStackState<MemoryBackend>, state_key: Vec<&str>) -> U256 {
+fn get_state_value(state: &MemoryStackState<MemoryBackend>, state_key: Vec<&str>) -> Word256 {
     let address = H160::from_str(state_key[0]).unwrap();
     let account = get_account_from_state(state, address);
 
@@ -179,8 +228,8 @@ fn get_state_value(state: &MemoryStackState<MemoryBackend>, state_key: Vec<&str>
     // We expect a format like: <account_address>.<field>
     if state_key.len() == 2 {
         match state_key[1] {
-            "nonce" => account.nonce,
-            "balance" => account.balance,
+            "nonce" => Word256::Uint(account.nonce),
+            "balance" => Word256::Uint(account.balance),
             _ => {
                 panic!("Invalid state key: {}", state_key[1]);
             }
@@ -189,9 +238,7 @@ fn get_state_value(state: &MemoryStackState<MemoryBackend>, state_key: Vec<&str>
         // If the state key vector has length 3, then we expect a format like: <account_address>.storage.<storage_key>
         let storage_key = H256::from_str(state_key[2]).unwrap();
         let storage_value = state.storage(address, storage_key);
-
-        // TODO: Support non numeric values
-        U256::from_big_endian(&storage_value[..])
+        Word256::Hash(storage_value.into())
     } else {
         panic!("Invalid state key format");
     }
@@ -201,7 +248,7 @@ fn get_input_value(
     calldata: &str,
     method_arguments: Vec<MethodArgument>,
     method_name: String,
-) -> U256 {
+) -> Word256 {
     // Use decode_calldata to obtain the values for the arguments
     let decoded = decode_calldata(
         calldata,
@@ -233,7 +280,7 @@ fn get_input_value(
         .unwrap()
         .0;
 
-    argument_value.clone().into_uint().unwrap()
+    token_to_word256(argument_value)
 }
 
 fn check_relative_condition(
@@ -256,13 +303,21 @@ fn check_relative_condition(
 
     // If relative condition value_op and v are defined, it means we must apply value_op to the post_state_value to obtain
     // second_val = value_op(post_state_value, v)
-    let second_val: U256 = match &relative_condition.value_op {
+    let second_val: Word256 = match &relative_condition.value_op {
         Some(value_op) => {
-            // Check if "v" is defined
-            match relative_condition.v {
-                Some(v) => execute_condition_op(value_op, post_state_value, v),
-                None => panic!("Value 'v' must be defined when 'value_op' is defined"),
-            }
+            let post_uint = match post_state_value {
+                Word256::Uint(u) => u,
+                Word256::Hash(_) => panic!("Cannot apply arithmetic operators to an H256 storage word"),
+            };
+
+            let v_uint = match relative_condition.v {
+                Some(Word256::Uint(u)) => u,
+                Some(Word256::Hash(_)) =>
+                    panic!("Cannot use an H256 as the arithmetic constant v"),
+                None => panic!("value_op requires v"),
+            };
+
+            Word256::Uint(execute_condition_op(value_op, post_uint, v_uint))
         }
         None => post_state_value,
     };
@@ -330,11 +385,22 @@ fn check_input_dependant_relative_condition(
         method_arguments,
         input_dependant_relative_condition.input.clone(),
     );
-    let second_val = execute_condition_op(
-        &input_dependant_relative_condition.input_op,
-        post_state_value,
-        input_value,
-    );
+
+    let second_val: Word256 = match &input_dependant_relative_condition.input_op {
+       input_op => {
+            let post_uint = match post_state_value {
+                Word256::Uint(u) => u,
+                Word256::Hash(_) => panic!("Cannot apply arithmetic operators to an H256 storage word"),
+            };
+
+            let input_value_uint = match input_value {
+                Word256::Uint(u) => u,
+                Word256::Hash(_) => panic!("Cannot use an H256 as the arithmetic constant input"),
+            };
+
+            Word256::Uint(execute_condition_op(input_op, post_uint, input_value_uint))
+        }
+    };
 
     check_condition_op(
         &input_dependant_relative_condition.op,
@@ -683,9 +749,18 @@ pub fn run_evm(
 mod tests {
     use super::*;
     use shared::conditions::MethodSpec;
+    use tracing_subscriber::EnvFilter;
 
+    fn setup() {
+        let env_filter = EnvFilter::new("debug");
+
+        // `try_init` succeeds only once; later calls are ignored instead of panicking
+        let _ = tracing_subscriber::fmt().with_env_filter(env_filter).try_init();
+    }
+    
     #[test]
     fn evm_find_new_exploit_basic_contract_works() {
+        setup();
         /*
         (**Finding a new exploit**) Calling the method ```exploit``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
@@ -742,6 +817,7 @@ mod tests {
 
     #[test]
     fn evm_find_new_exploit_basic_contract_erc20_works() {
+        setup();
         /*
         (**Finding a new exploit**) Calling the method ```exploit_erc20``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
@@ -795,6 +871,7 @@ mod tests {
 
     #[test]
     fn evm_find_new_exploit_over_under_flow_storage_works() {
+        setup();
         /*
         (**Finding a new exploit**) Calling the method ```withdraw``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
@@ -848,6 +925,7 @@ mod tests {
 
     #[test]
     fn evm_find_new_exploit_over_reentrancy_attack_works() {
+        setup();
         /*
         (**Finding a new exploit**) Calling the method ```attack``` and showing that if there existed a condition $C_j$ (where currently $C_j \notin S$), then the program specification would not comply with the end state $s'$
          */
