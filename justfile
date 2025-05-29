@@ -187,7 +187,7 @@ prove function params context_state program_spec value network bonsai="false" ve
 	    export BONSAI_API_URL="{{BONSAI_API_URL}}"; \
 	  else \
 	    echo "Using local proving \n"; \
-	    export RISC0_DEV_MODE=1; \
+	    export RISC0_DEV_MODE="{{env("RISC0_DEV_MODE", "1")}}"; \
 	  fi; \
 	  cargo run --release --bin host -- \
 	    --function "{{function}}" \
