@@ -4,6 +4,10 @@
 set dotenv-load
 set quiet
 
+# Default to environment file value, otherwise turn on dev mode.
+# With dev mode on, no proofs are generated.
+RISC0_DEV_MODE := env("RISC0_DEV_MODE", "1")
+
 # RPC URLs and Bonsai API URL  
 ANVIL_RPC_URL := "http://localhost:8545"
 SEPOLIA_RPC_URL := "https://ethereum-sepolia-rpc.publicnode.com"
@@ -187,7 +191,7 @@ prove function params context_state program_spec value network bonsai="false" ve
 	    export BONSAI_API_URL="{{BONSAI_API_URL}}"; \
 	  else \
 	    echo "Using local proving \n"; \
-	    export RISC0_DEV_MODE="{{env("RISC0_DEV_MODE", "1")}}"; \
+	    export RISC0_DEV_MODE="{{RISC0_DEV_MODE}}"; \
 	  fi; \
 	  cargo run --release --bin host -- \
 	    --function "{{function}}" \
