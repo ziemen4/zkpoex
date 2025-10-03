@@ -57,6 +57,8 @@ The project is structured as a Cargo workspace with four main members: **host**,
       - [Running Tests for the EVM Runner](#running-tests-for-the-evm-runner)
     - [Smart contract owner](#smart-contract-owner)
       - [Verifier Deployment](#verifier-deployment)
+  - [Performance Metrics for Exploit Verification Proofs](#performance-metrics-for-exploit-verification-proofs)
+    - [Key Metrics](#key-metrics)
   - [Project Structure](#project-structure)
   - [License](#license)
 
@@ -195,9 +197,32 @@ For more details on this, check out the [`sc-owner/README.md`](./sc-owner/README
 
 ### Benchmarks
 
-If you want to collect performance metrics and profiling data for RISC Zero zkVM guest executions, check out the [`scripts/bench/README.md`](./scripts/bench/README.md). 
+If you want to collect performance metrics and profiling data for RISC Zero zkVM guest executions, check out the [`scripts/bench/README.md`](./scripts/bench/README.md). Example performance results, including average prover times and verifier costs over 10 runs, are already available in this README under "[Performance Metrics for Exploit Verification Proofs](#performance-metrics)" section.
+
 
 **Please note:** currently, the benchmarking functions are not fully supported on Linux or other Unix-based systems.
+
+## Performance Metrics for Exploit Verification Proofs
+
+This section contains some example performance results of exploit verification proofs using **zkpoex v0.1.0** with **RISC Zero v2.3**. Prover times represent end-to-end proof generation on an **AWS t3.2xlarge EC2 instance** running Ubuntu, equipped with 8 vCPUs and 32 GiB of RAM.
+
+### Key Metrics
+
+Three key metrics were analyzed:
+
+- **Total cycles**: Measure of computational complexity in the zkVM.
+- **Prover time**: Wall-clock time for proof generation.
+- **Verifier cost**: Gas consumption for on-chain verification.
+
+For each vulnerability category present in [./shared/examples/](./shared/examples/), **10 independent experimental runs** were carried out. The table below reports the **average values** over the runs for prover runtime (with the standard deviation in parentheses) and the mean verifier cost in term of gas.
+
+
+| Case Study             | Total Cycles | Prover Time (s) | Verifier Cost (gas) |
+|------------------------|-------------:|----------------:|------------------:|
+| Logic Vulnerability     | 1,048,576   | 525.0 (±27.4)   | 296,348           |
+| Arithmetic Overflow     | 524,288     | 334.6 (±4.2)    | 296,361           |
+| Reentrancy Drain        | 2,097,152   | 892.4 (±10.5)   | 296,332           |
+
 
 ## Project Structure
 
