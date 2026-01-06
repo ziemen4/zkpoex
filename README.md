@@ -35,7 +35,7 @@
 The project is structured as a Cargo workspace with four main members: **host**, **methods**, **evm-runner** and **sc-owner**.
 <div>
   <img src="assets/zkpoex.png" width="500" >
-</div>
+</div> 
 
 ---
 
@@ -60,6 +60,7 @@ The project is structured as a Cargo workspace with four main members: **host**,
   - [Performance Metrics for Exploit Verification Proofs](#performance-metrics-for-exploit-verification-proofs)
     - [Key Metrics](#key-metrics)
   - [Project Structure](#project-structure)
+  - [Citation](#citation)
   - [License](#license)
 
 ---
@@ -244,6 +245,27 @@ zkpoex/
 └── README.md             # This file
 ```
 
+---
+## Citation
+Should you find this work useful in your research, we kindly encourage its appropriate citation:
+
+```
+@inproceedings{10.1145/3748522.3779811,
+      author = {Alessandro Cavaliere and Santiago Galiñanes Arienti and Christian Esposito and Naghmeh Ivaki and Nuno Laranjeiro},
+      title = {A Framework for Zero-Knowledge Proofs of Exploits in Solidity Smart Contracts}, 
+      year = {2025},
+      isbn = {},
+      publisher = {Association for Computing Machinery},
+      address = {New York, NY, USA},
+      url = {https://doi.org/10.1145/3748522.3779811},
+      doi = {10.1145/3748522.3779811},
+      abstract = {The vulnerability disclosure process in blockchain and Decentralized Finance (DeFi) is often challenging. Researchers risk having their findings ignored without compensation, while projects are inundated with spam and low-quality reports, and they fear premature disclosure of exploits. This paper presents zkpoex, a Rust-based framework that enables a Prover to generate Zero-Knowledge Proofs of Exploit, thereby automating and de-risking this process. zkpoex replays a malicious blockchain transaction within RISC Zero's Zero-Knowledge Virtual Machine to produce a Succinct Non-interactive Argument of Knowledge (SNARK) attesting that a contract can be breached, without revealing the exploit's mechanics. This capability allows researchers to demonstrate exploits in an environment where trust between parties does not exist, and allows project owners to be informed of the presence of vulnerabilities in a verifiable, secure manner. Our tool transforms bug bounty and related platforms into automatic agreements suitable for untrustworthy environments, promoting security collaboration in blockchain environments.}
+      keywords = {Zero-Knowledge Proofs (ZKP), Blockchain,  Zero-Knowledge Virtual Machine (zkVM), Succinct Non-interactive Argument of Knowledge (SNARK), Scalable Transparent Argument of Knowledge (STARK)}
+      booktitle = {Proceedings of the 41th ACM/SIGAPP Symposium on Applied Computing},
+      pages = {3–10},
+      numpages = {10}
+}
+```
 ---
 
 ## License
